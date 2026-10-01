@@ -1,0 +1,569 @@
+from __future__ import annotations
+
+import os
+
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
+import pytest
+
+# A lightweight safety net for the UI layer, which has no other test coverage.
+# It boots a QApplication, applies the theme, checks that a runtime accent
+# change is actually reflected (guards the theme package's live-token wiring),
+# and constructs the whole MainWindow once (exercises every _build_* path and
+# every signal connection). It does not assert on pixels - it only proves the
+# app assembles and re-themes without raising.
+
+# Skip the whole module when the Qt GUI stack cannot be imported - e.g. a
+# headless CI image without libGL. importorskip does not skip on this kind of
+# nested ImportError (a missing system .so, not a missing module), so import it
+# explicitly and skip at collection time on any failure.
+try:
+    from PySide6.QtWidgets import QApplication as _QApplication  # noqa: F401
+except Exception as _exc:  # noqa: BLE001 - missing Qt libs/display -> skip, don't fail
+    pytest.skip(f"PySide6 GUI not available: {_exc}", allow_module_level=True)
+
+
+def _app():  # noqa: ANN202
+    from PySide6.QtWidgets import QApplication
+
+    return QApplication.instance() or QApplication([])
+
+
+def _open(window, archive, timeout: float = 20.0) -> None:  # noqa: ANN001
+    """Open an archive and wait for the worker thread to finish reading it."""
+    import time
+
+    from PySide6.QtWidgets import QApplication
+
+    window.open_archive(archive)
+    deadline = time.monotonic() + timeout
+    while window.is_opening and time.monotonic() < deadline:
+        QApplication.processEvents()
+        time.sleep(0.005)
+    QApplication.processEvents()
+    assert not window.is_opening
+
+
+def test_theme_applies_and_accent_is_live() -> None:
+    from archy.ui import theme
+
+    app = _app()
+    theme.apply(app)
+    before = theme.ACCENT
+    theme.set_accent("#FF0000", "#00FF00")
+    assert theme.ACCENT == "#FF0000"
+    assert before != theme.ACCENT
+    assert theme.ACCENT_RGB == (255, 0, 0)
+    # restore the default so other tests/renders see the normal palette
+    theme.set_accent("#45C0CD", "#CD7E45")
+
+
+def test_main_window_constructs() -> None:
+    from archy.ui import theme
+    from archy.ui.main_window import MainWindow
+
+    app = _app()
+    theme.apply(app)
+    window = MainWindow()
+    window.show()
+    window.close()
+
+
+def test_thumbnail_view_loads_offscreen_thumbnails_from_solid_7z(tmp_path) -> None:
+    # Opening a solid 7z in a thumbnail view should start the folder pass right
+    # away and make every thumbnail during it - not only the visible tiles -
+    # with one indicator that finishes when they are all ready.
+    import io
+    import time
+
+    py7zr = pytest.importorskip("py7zr")
+    from PySide6.QtGui import QColor, QImage
+
+    from archy.ui import theme
+    from archy.ui.main_window import MainWindow
+
+    archive = tmp_path / "photos.7z"
+    with py7zr.SevenZipFile(str(archive), "w") as out:
+        for i in range(60):
+            image = QImage(64, 48, QImage.Format.Format_RGB32)
+            image.fill(QColor(i * 4, 90, 160))
+            buf = io.BytesIO()
+            from PySide6.QtCore import QBuffer, QByteArray
+
+            data = QByteArray()
+            qbuf = QBuffer(data)
+            qbuf.open(QBuffer.OpenModeFlag.WriteOnly)
+            image.save(qbuf, "PNG")
+            buf.write(bytes(data))
+            out.writef(io.BytesIO(buf.getvalue()), f"img{i:03d}.png")
+
+    app = _app()
+    theme.apply(app)
+    window = MainWindow()
+    window.resize(900, 600)
+    window.show()
+    progress: list[tuple[int, int]] = []
+    finished: list[bool] = []
+    window._prefetcher.progress.connect(lambda d, t: progress.append((d, t)))
+    window._prefetcher.done.connect(lambda: finished.append(True))
+    _open(window, archive)
+    window._view_group.button(2).setChecked(True)
+    window._switch_view(2)
+
+    paths = [e.path for e in window._display_folder_files()]
+    assert len(paths) == 60
+    deadline = time.monotonic() + 20
+    while time.monotonic() < deadline:
+        app.processEvents()
+        if all(p in window._thumbs._cache for p in paths):
+            break
+        time.sleep(0.01)
+    missing = [p for p in paths if p not in window._thumbs._cache]
+    assert not missing, f"{len(missing)} thumbnails never loaded"
+    deadline = time.monotonic() + 5
+    while not finished and time.monotonic() < deadline:
+        app.processEvents()
+        time.sleep(0.01)
+    # One folder pass made every thumbnail, and its indicator counted them all.
+    assert finished
+    assert progress and progress[-1] == (60, 60)
+    dones = [done for done, _total in progress]
+    assert dones == sorted(dones)
+    window.close()
+
+
+def test_image_thumbnail_gate_uses_uncompressed_size() -> None:
+    # On a solid 7z the first entry of a block reports the whole block as its
+    # compressed size; that must not rule out its thumbnail.
+    from archy.core.backend import ArchiveEntry, EntryType
+    from archy.ui.thumbnail_loader import ThumbnailLoader
+
+    _app()
+    loader = ThumbnailLoader()
+    first = ArchiveEntry(
+        path="photos/IMG_0000.jpg",
+        type=EntryType.FILE,
+        size=5 * 1024 * 1024,
+        compressed_size=400 * 1024 * 1024,
+    )
+    assert loader._is_thumbnailable(first)
+
+
+def test_image_thumbnail_is_decoded_to_thumbnail_size() -> None:
+    from PySide6.QtCore import QBuffer, QByteArray
+    from PySide6.QtGui import QColor, QImage
+
+    from archy.ui.thumbnail_loader import _THUMB_SIZE, _decode_image_thumb
+
+    _app()
+    for width, height in ((2400, 1600), (100, 60)):
+        source = QImage(width, height, QImage.Format.Format_RGB32)
+        source.fill(QColor(20, 120, 200))
+        data = QByteArray()
+        buffer = QBuffer(data)
+        buffer.open(QBuffer.OpenModeFlag.WriteOnly)
+        source.save(buffer, "JPG")
+        image = _decode_image_thumb(bytes(data))
+        assert not image.isNull()
+        assert max(image.width(), image.height()) == min(max(width, height), _THUMB_SIZE)
+
+
+def test_thumbnail_view_loads_whole_zip_folder(tmp_path) -> None:
+    # A zip needs no folder pass (every file is cheap to read on its own); the
+    # loader fills the whole folder itself while a thumbnail view is showing.
+    import time
+    import zipfile
+
+    from PySide6.QtCore import QBuffer, QByteArray
+    from PySide6.QtGui import QColor, QImage
+
+    from archy.ui import theme
+    from archy.ui.main_window import MainWindow
+
+    archive = tmp_path / "photos.zip"
+    with zipfile.ZipFile(archive, "w") as out:
+        for i in range(50):
+            image = QImage(64, 48, QImage.Format.Format_RGB32)
+            image.fill(QColor(i * 5, 60, 120))
+            data = QByteArray()
+            buffer = QBuffer(data)
+            buffer.open(QBuffer.OpenModeFlag.WriteOnly)
+            image.save(buffer, "PNG")
+            out.writestr(f"img{i:03d}.png", bytes(data))
+
+    app = _app()
+    theme.apply(app)
+    window = MainWindow()
+    window.resize(900, 600)
+    window.show()
+    _open(window, archive)
+    window._view_group.button(2).setChecked(True)
+    window._switch_view(2)
+    paths = [e.path for e in window._display_folder_files()]
+    assert len(paths) == 50
+    deadline = time.monotonic() + 20
+    while time.monotonic() < deadline:
+        app.processEvents()
+        if all(p in window._thumbs._cache for p in paths):
+            break
+        time.sleep(0.01)
+    assert all(p in window._thumbs._cache for p in paths)
+    window.close()
+
+
+def test_app_icon_resolves_for_every_platform(monkeypatch) -> None:
+    # The Dock/taskbar icon ships inside the package; both variants must exist.
+    from archy import app as app_module
+
+    for platform in ("darwin", "win32", "linux"):
+        monkeypatch.setattr(app_module.sys, "platform", platform)
+        path = app_module._app_icon_path()
+        assert path.exists(), f"missing app icon for {platform}: {path}"
+    monkeypatch.setattr(app_module.sys, "platform", "darwin")
+    assert app_module._app_icon_path().name == "archy_macos.png"
+
+
+def test_disk_mode_keeps_folder_and_video_encrypted(tmp_path, monkeypatch) -> None:
+    # "Always use temporary files": the folder pass keeps its files in the
+    # encrypted store (not RAM), thumbnails still all appear, a video plays
+    # through the decrypting device, and nothing readable is left on disk.
+    import io
+    import time
+    from dataclasses import dataclass
+
+    py7zr = pytest.importorskip("py7zr")
+    av = pytest.importorskip("av")
+    import numpy as np
+    from PySide6.QtCore import QBuffer, QByteArray
+    from PySide6.QtGui import QColor, QImage
+
+    from archy.ui import theme
+    from archy.ui.main_window import MainWindow
+
+    # A tiny real video (PyAV) plus a few images, solid 7z.
+    video = io.BytesIO()
+    with av.open(video, "w", format="mp4") as out:
+        stream = out.add_stream("mpeg4", rate=25)
+        stream.width, stream.height, stream.pix_fmt = 64, 48, "yuv420p"
+        for i in range(25):
+            frame = av.VideoFrame.from_ndarray(
+                np.full((48, 64, 3), i * 8, np.uint8), format="rgb24"
+            )
+            for packet in stream.encode(frame):
+                out.mux(packet)
+        for packet in stream.encode():
+            out.mux(packet)
+    marker = b"ARCHY-PLAINTEXT-MARKER"
+    archive = tmp_path / "shoot.7z"
+    with py7zr.SevenZipFile(str(archive), "w") as z:
+        z.writef(io.BytesIO(video.getvalue()), "shoot/clip.mp4")
+        for i in range(6):
+            image = QImage(64, 48, QImage.Format.Format_RGB32)
+            image.fill(QColor(i * 30, 80, 140))
+            data = QByteArray()
+            buffer = QBuffer(data)
+            buffer.open(QBuffer.OpenModeFlag.WriteOnly)
+            image.save(buffer, "PNG")
+            z.writef(io.BytesIO(bytes(data) + marker), f"shoot/img{i}.png")
+
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+
+    @dataclass
+    class _Temp:
+        temp_mode: str = "disk"
+        temp_location: str = "custom"
+        temp_dir: str = str(scratch)
+        prune_on_exit: bool = True
+
+    app = _app()
+    theme.apply(app)
+    window = MainWindow()
+    window._temp._settings = _Temp()
+    from archy.ui import thumbnail_loader
+
+    via_disk = []
+    original = thumbnail_loader._ThumbTask._video_thumbnail_from_disk
+
+    def spy(task):  # noqa: ANN001, ANN202
+        via_disk.append(task._entry.path)
+        return original(task)
+
+    monkeypatch.setattr(thumbnail_loader._ThumbTask, "_video_thumbnail_from_disk", spy)
+    window.resize(900, 600)
+    window.show()
+    _open(window, archive)
+    window._view_group.button(2).setChecked(True)
+    window._switch_view(2)
+    window._enter_folder(window._nav[0].children["shoot"])
+
+    images = [e.path for e in window._display_folder_files() if e.path.endswith(".png")]
+    deadline = time.monotonic() + 20
+    while time.monotonic() < deadline:
+        app.processEvents()
+        if all(p in window._thumbs._cache for p in images):
+            break
+        time.sleep(0.01)
+    assert all(p in window._thumbs._cache for p in images)
+    backend = window._backend
+    assert backend._folder_buffer == {}  # nothing kept in RAM...
+    assert all(backend.spilled_blob(p) is not None for p in images)  # ...but on disk
+
+    # The video's thumbnail comes through the encrypted store too (streamed to
+    # disk, read by PyAV from the decrypting reader), not from RAM.
+    clip = next(e.path for e in window._display_folder_files() if e.path.endswith(".mp4"))
+    deadline = time.monotonic() + 20
+    while time.monotonic() < deadline and clip not in window._thumbs._cache:
+        window._grid.viewport().update()
+        app.processEvents()
+        time.sleep(0.01)
+    assert clip in window._thumbs._cache
+    assert via_disk == [clip]  # made via the encrypted store, not from RAM
+    assert backend._read_cache_bytes == 0  # no RAM read cache in this mode
+
+    # Nothing readable on disk: no marker, no original names.
+    on_disk = [p for p in scratch.rglob("*") if p.is_file()]
+    assert on_disk
+    assert not any(marker in p.read_bytes() for p in on_disk)
+    assert not any(p.suffix for p in on_disk)
+
+    # Select the video: it plays from the encrypted store via the device.
+    video_node = window._nav[-1].children["clip.mp4"]
+    window._req_id += 1
+    window._preview_node(video_node, window._req_id)
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline:
+        app.processEvents()
+        layout = window._preview_layout
+        widget = layout.itemAt(0).widget() if layout.count() else None
+        if widget is not None and hasattr(widget, "_video_device"):
+            break
+        time.sleep(0.01)
+    assert hasattr(widget, "_video_device")
+    assert not any(b"ftyp" in p.read_bytes()[:64] for p in scratch.rglob("*") if p.is_file())
+    window.close()
+    assert not [p for p in scratch.rglob("*") if p.is_file()]  # pruned at exit
+
+
+def test_settings_map_to_memory_limits_and_migrate_old_temp_mode() -> None:
+    from PySide6.QtCore import QCoreApplication
+
+    from archy.ui.settings import Settings
+
+    _app()
+    org, name = QCoreApplication.organizationName(), QCoreApplication.applicationName()
+    QCoreApplication.setOrganizationName("ArchyTest")
+    QCoreApplication.setApplicationName("ArchyTestSettings")
+    try:
+        s = Settings()
+        s._q.clear()
+        limits = s.limits()  # all Automatic by default
+        assert limits.cap_bytes is None and limits.cap_percent == 75
+        assert limits.folder_buffer_bytes is None and limits.threads is None
+        s.set("temp/mode", "temp")  # stored by older versions
+        assert s.temp_mode == "overflow"
+        s.set("res/cap_mode", "fixed")
+        s.set("res/cap_gb", 6)
+        s.set("res/folder_mb", 2048)
+        s.set("res/threads", 3)
+        limits = s.limits()
+        assert limits.cap_bytes == 6 * 1024**3
+        assert limits.folder_buffer_bytes == 2048 * 1024**2
+        assert limits.threads == 3
+        s._q.clear()
+    finally:
+        QCoreApplication.setOrganizationName(org)
+        QCoreApplication.setApplicationName(name)
+
+
+def test_byte_progress_signals_carry_more_than_2gb() -> None:
+    # Qt's plain int is 32-bit: byte counts of a 46 GB extraction overflowed
+    # (a bare "OverflowError" per update, and 0 delivered).
+    from archy.ui.extract_worker import ExtractWorker
+    from archy.ui.preview_loader import PreviewLoader
+
+    _app()
+    big, total = 5 * 1024**3, 46 * 1024**3
+    worker = ExtractWorker()
+    got: list = []
+    worker.progress.connect(lambda d, t, n, f: got.append((d, t, n)))
+    worker.progress.emit(big, total, "x.jpg", 3)
+    loader = PreviewLoader()
+    loader.spill_progress.connect(lambda r, d, t: got.append((r, d, t)))
+    loader.spill_progress.emit(7, big, total)
+    assert got == [(big, total, "x.jpg"), (7, big, total)]
+
+
+def test_extract_dialog_follows_progress_and_shows_the_result(tmp_path, monkeypatch) -> None:
+    import io
+    import os
+    import time
+
+    py7zr = pytest.importorskip("py7zr")
+    from PySide6.QtWidgets import QFileDialog
+
+    from archy.ui import theme
+    from archy.ui.main_window import MainWindow
+
+    archive = tmp_path / "a.7z"
+    with py7zr.SevenZipFile(str(archive), "w") as z:
+        for i in range(20):
+            z.writef(io.BytesIO(os.urandom(200_000)), f"map/sub/f{i:02d}.bin")
+    dest = tmp_path / "out"
+    dest.mkdir()
+    pick = staticmethod(lambda *a, **k: str(dest))
+    monkeypatch.setattr(QFileDialog, "getExistingDirectory", pick)
+
+    app = _app()
+    theme.apply(app)
+    window = MainWindow()
+    window._view_group.button(0).setChecked(True)
+    window._switch_view(0)
+    window.show()
+    _open(window, archive)
+    names: list[str] = []
+    finished: list = []
+    window._extract_worker.progress.connect(lambda d, t, n, f: names.append(n))
+    window._extract_worker.finished.connect(finished.append)
+    window.extract_all()
+    dialog = window._extract_dialog
+    assert dialog is not None and dialog.isVisible()
+    deadline = time.monotonic() + 30
+    while not finished and time.monotonic() < deadline:
+        app.processEvents()
+        time.sleep(0.01)
+    app.processEvents()
+    assert finished and finished[0].extracted == 20
+    assert all(n.startswith("map/sub/") for n in names)  # full path in the archive
+    assert dialog._state.text() == "Done"
+    assert dialog._bar.value() == 1000
+    assert "20 of 20" in dialog._numbers.text()
+    assert len(list(dest.rglob("*.bin"))) == 20
+    dialog.accept()
+    window.close()
+
+
+def _encrypted_backup(path, *, store: bool = True):  # noqa: ANN001, ANN202
+    import io
+
+    from archy.core.backends.sevenzip_writer import _Writer
+
+    writer = _Writer(path, password="geheim", header_encrypted=True, store=store, solid=False)
+    writer.add_dir("fotos")
+    writer.add_file("fotos/a.jpg", 5000, io.BytesIO(b"a" * 5000))
+    writer.add_file("fotos/b.jpg", 3000, io.BytesIO(b"b" * 3000))
+    writer.add_file("notes.txt", 5, io.BytesIO(b"hallo"))
+    writer.close()
+    return path
+
+
+def test_lock_shows_why_and_store_7z_can_be_unlocked_and_saved(tmp_path, monkeypatch) -> None:
+    import time
+
+    import archy.ui.main_window.locking as locking
+    import archy.ui.main_window.opening as opening
+    from archy.ui.main_window import MainWindow
+
+    app = _app()
+    monkeypatch.setattr(opening.soft_dialog, "prompt_text", lambda *a, **k: "geheim")
+    asked: list[str] = []
+
+    def fake_exec(dialog) -> int:  # noqa: ANN001 - the unlock explanation
+        from PySide6.QtWidgets import QLabel
+
+        asked.extend(label.text() for label in dialog.findChildren(QLabel))
+        dialog._value = True
+        return 1
+
+    monkeypatch.setattr(locking.soft_dialog.SoftDialog, "exec", fake_exec)
+    window = MainWindow()
+    window.resize(1200, 800)
+    window.show()
+
+    # Compressed + encrypted: locked for good, and the tooltip says why.
+    _open(window, _encrypted_backup(tmp_path / "packed.7z", store=False))
+    assert window._lock_button.isVisible()
+    assert window._lock_button.property("lockState") == locking.FIXED
+    assert "compressed" in window._lock_button.toolTip()
+    assert not window._can_edit()
+
+    # Store + encrypted: locked, explained, and unlockable on purpose.
+    archive = _encrypted_backup(tmp_path / "store.7z")
+    _open(window, archive)
+    assert window._lock_button.property("lockState") == locking.LOCKED
+    assert "Click to unlock" in window._lock_button.toolTip()
+    assert not window._can_edit()
+    window._lock_button.click()
+    assert any("next to the original" in text for text in asked)
+    assert window._can_edit()
+    assert window._lock_button.property("lockState") == locking.UNLOCKED
+
+    window._backend.rename("notes.txt", "notities.txt")
+    window._backend.write_bytes("nieuw.txt", b"nieuw")
+    window.save_archive()
+    deadline = time.monotonic() + 30
+    while window._saving and time.monotonic() < deadline:
+        app.processEvents()
+        time.sleep(0.01)
+    app.processEvents()
+    assert not window._saving
+    assert not window._backend.has_unsaved_changes
+    names = {e.path for e in window._backend.list_entries()}
+    assert {"notities.txt", "nieuw.txt", "fotos/a.jpg"} <= names and "notes.txt" not in names
+    assert window._can_edit()  # stays unlocked for this session
+
+    # Reopening locks it again.
+    _open(window, archive)
+    assert window._lock_button.property("lockState") == locking.LOCKED
+    window.close()
+
+
+def test_spinner_shows_while_an_archive_opens(tmp_path, monkeypatch) -> None:
+    import time
+    import zipfile
+
+    from archy.core.backends.zip_backend import ZipBackend
+    from archy.ui.main_window import MainWindow
+
+    app = _app()
+    archive = tmp_path / "slow.zip"
+    with zipfile.ZipFile(archive, "w") as zf:
+        zf.writestr("a.txt", "a")
+    original = ZipBackend.list_entries
+
+    def slow(self):  # noqa: ANN001, ANN202
+        time.sleep(0.6)
+        return original(self)
+
+    monkeypatch.setattr(ZipBackend, "list_entries", slow)
+    window = MainWindow()
+    window.show()
+    window.open_archive(archive)
+    seen = False
+    deadline = time.monotonic() + 10
+    while window.is_opening and time.monotonic() < deadline:
+        app.processEvents()
+        seen = seen or window._busy.isVisible()
+        time.sleep(0.01)
+    app.processEvents()
+    assert seen  # the window showed it was busy
+    assert not window._busy.isVisible()
+    assert window._archive_items == 1
+    window.close()
+
+
+def test_the_window_is_built_in_the_chosen_language() -> None:
+    from archy import i18n
+    from archy.ui.main_window import MainWindow
+
+    _app()
+    i18n.set_language("nl")
+    dutch = MainWindow()
+    assert dutch._open_button.text() == "Openen"
+    assert dutch._status_selection.text() == "Geen selectie"
+    dutch.close()
+    i18n.set_language("en")
+    english = MainWindow()
+    assert english._open_button.text() == "Open"
+    assert english._status_selection.text() == "No selection"
+    english.close()

@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+env/
+
+# Tooling
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Packaging output (generated artifacts, not source)
+*.spec
+# ...but our hand-written PyInstaller spec IS source, so keep it tracked:
+!packaging/*.spec
+*.AppImage
+*.dmg
+*.msi
+
+# Editors / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store

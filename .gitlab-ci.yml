@@ -1,0 +1,107 @@
+# GitLab CI for Archy.
+#
+# lint + test run on every pipeline (Linux). The build stage produces the
+# installers and only runs where it can:
+#   - build:linux-appimage runs automatically on version tags, and can be
+#     triggered by hand otherwise; it produces a portable AppImage.
+#   - build:windows / build:macos are manual jobs that need their own runners
+#     (tags: windows / macos). Until those runners exist they simply never start,
+#     so they never block or fail a pipeline.
+#
+# The test job installs the native libarchive C library (libarchive13;
+# libarchive-c only ships the Python binding, and the LibArchiveBackend tests
+# need the native lib) plus the minimal Qt runtime libs (libgl1, libegl1) so the
+# offscreen UI smoke test can import PySide6. That test skips itself if the GUI
+# stack still cannot load, so CI stays green regardless.
+
+default:
+  image: python:3.12-slim
+
+stages:
+  - lint
+  - test
+  - build
+
+variables:
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+
+cache:
+  key: "$CI_JOB_NAME"
+  paths:
+    - .cache/pip
+
+lint:
+  stage: lint
+  script:
+    - pip install ruff
+    - ruff check .
+    - ruff format --check .
+
+test:
+  stage: test
+  script:
+    - apt-get update && apt-get install -y --no-install-recommends libarchive13 libgl1 libegl1
+    - pip install -e ".[dev]"
+    - QT_QPA_PLATFORM=offscreen pytest
+
+# --- packaging -------------------------------------------------------------
+
+build:linux-appimage:
+  stage: build
+  rules:
+    - if: $CI_COMMIT_TAG          # auto on version tags (releases)
+    - when: manual               # otherwise: run it by hand from the UI
+      allow_failure: true
+  script:
+    # Runtime libs the bundled app needs, plus libxcb-cursor0 (bundled into the
+    # AppImage for the Qt xcb platform plugin) and curl (fetches appimagetool).
+    - apt-get update && apt-get install -y --no-install-recommends
+        libarchive13 libgl1 libegl1 libxcb-cursor0 curl file desktop-file-utils
+    - pip install -e ".[dev]" pyinstaller
+    - chmod +x packaging/build_appimage.sh
+    - ./packaging/build_appimage.sh
+  artifacts:
+    name: "Archy-AppImage"
+    paths:
+      - dist/*.AppImage
+    expire_in: 30 days
+
+build:windows:
+  stage: build
+  tags:
+    - windows                    # needs a Windows runner (shell executor)
+  rules:
+    - if: $CI_COMMIT_TAG
+      when: manual
+      allow_failure: true
+  script:
+    - pip install -e ".[dev]" pyinstaller
+    - pyinstaller packaging\archy.spec --noconfirm
+    # No native lib needed (zip/7z/tar are pure Python). Optional: drop
+    # libarchive.dll into dist\Archy\ here to add rar/exotic support.
+    # Build the installer once Inno Setup is on the runner:
+    # - ISCC packaging\windows\archy.iss
+  artifacts:
+    name: "Archy-windows"
+    paths:
+      - packaging/windows/Output/*.exe
+    expire_in: 30 days
+
+build:macos:
+  stage: build
+  tags:
+    - macos                      # needs a macOS runner
+  rules:
+    - if: $CI_COMMIT_TAG
+      when: manual
+      allow_failure: true
+  script:
+    - pip install -e ".[dev]" pyinstaller
+    - brew install libarchive || true
+    - chmod +x packaging/macos/build_dmg.sh
+    - ./packaging/macos/build_dmg.sh
+  artifacts:
+    name: "Archy-macos"
+    paths:
+      - dist/*.dmg
+    expire_in: 30 days

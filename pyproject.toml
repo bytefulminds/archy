@@ -1,0 +1,71 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "archy"
+# Version is read from src/archy/__init__.py (__version__) - single source of
+# truth; see [tool.hatch.version] below.
+dynamic = ["version"]
+description = "Cross-platform archive explorer that browses archives without extracting them to disk."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.11"
+authors = [{ name = "Archy contributors" }]
+keywords = ["archive", "zip", "7z", "rar", "explorer", "pyside6", "qt"]
+dependencies = [
+    "PySide6>=6.7",
+    "libarchive-c>=5.1",
+    "py7zr>=0.21",
+    "charset-normalizer>=3.3",
+    "pyzipper>=0.3.6",
+    "pycryptodomex>=3.19",  # encrypted temp files (also used by pyzipper/py7zr)
+    "psutil>=5.9",
+]
+
+[project.urls]
+Homepage = "https://gitlab.com/bytefulminds/archy"
+Source = "https://gitlab.com/bytefulminds/archy"
+Issues = "https://gitlab.com/bytefulminds/archy/-/issues"
+
+[project.optional-dependencies]
+video-fallback = ["av>=12.0"]       # in-memory video decode fallback (PyAV)
+dev = ["pytest>=8.0", "ruff>=0.5", "mypy>=1.10"]
+
+[project.scripts]
+archy = "archy.__main__:main"
+
+[project.gui-scripts]
+archy-gui = "archy.__main__:main"
+
+[tool.hatch.version]
+path = "src/archy/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/archy"]
+# Ship the bundled OFL fonts inside the wheel/installers. The app loads them
+# from archy/resources/fonts at startup, so they must always be present.
+# `artifacts` forces their inclusion even if a future .gitignore rule would
+# otherwise skip them.
+artifacts = [
+    "src/archy/resources/fonts/*.ttf",
+    "src/archy/resources/icons/*.png",
+    "src/archy/resources/i18n/*.json",
+]
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+files = ["src"]

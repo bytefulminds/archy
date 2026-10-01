@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Archy
+GenericName=Archive Explorer
+Comment=Browse archives without extracting them to disk
+Exec=Archy %f
+Icon=archy
+Categories=Utility;Archiving;FileTools;
+Terminal=false
+StartupWMClass=Archy
+MimeType=application/zip;application/x-7z-compressed;application/x-tar;application/gzip;application/x-bzip2;application/x-xz;application/vnd.rar;application/x-rar-compressed;
