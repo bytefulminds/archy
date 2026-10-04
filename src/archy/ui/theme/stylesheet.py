@@ -184,6 +184,18 @@ _TEMPLATE = """
         background: {_GLASS};
         border-right: 1px solid {_EDGE_SOFT};
     }}
+    QFrame#archiveNotice {{
+        background: rgba(224, 165, 75, 0.12);
+        border: none;
+        border-bottom: 1px solid rgba(224, 165, 75, 0.35);
+        border-left: 3px solid {WARNING};
+    }}
+    QLabel#noticeTitle {{ color: {WARNING}; font-weight: 600; font-size: 12px; }}
+    QLabel#noticeText {{ color: {TEXT_SECONDARY}; font-size: 12px; }}
+    QToolButton#noticeClose {{
+        background: transparent; border: none; border-radius: 6px; padding: 3px;
+    }}
+    QToolButton#noticeClose:hover {{ background: {_GLASS_STRONG}; }}
     QFrame#breadcrumb {{
         background: {_GLASS_SOFT};
         border-bottom: 1px solid {DIVIDER};
@@ -456,6 +468,35 @@ _TEMPLATE = """
     }}
     QSpinBox#dialogSpin:focus {{ border: 1px solid {ACCENT}; }}
     QScrollArea#settingsScroll {{ background: transparent; border: none; }}
+    /* rendered HTML on white paper (pages assume a light background); */
+    /* rendered Markdown in the app's own colours */
+    QTextBrowser#htmlPage {{
+        background: #FFFFFF; color: #1B1F23; border: 1px solid {BORDER}; border-radius: 10px;
+        selection-background-color: #B3D7FF; selection-color: #1B1F23;
+    }}
+    QFrame#findBar {{
+        background: {SURFACE}; border: 1px solid {BORDER}; border-radius: 10px;
+    }}
+    QLineEdit#findField {{
+        background: transparent; border: none; padding: 4px 4px; min-height: 22px;
+    }}
+    QLabel#findCount {{ color: {TEXT_SECONDARY}; font-size: 11px; padding: 0 6px; }}
+    QToolButton#findButton {{ padding: 4px; border-radius: 6px; }}
+    QTableView#csvTable {{
+        background: {SURFACE}; alternate-background-color: {SURFACE_ALT};
+        border: 1px solid {BORDER}; border-radius: 10px; gridline-color: {DIVIDER};
+        selection-background-color: {SELECTION_BG}; selection-color: {TEXT_PRIMARY};
+    }}
+    QTableView#csvTable QHeaderView::section {{
+        background: {ELEVATED}; border: none; border-right: 1px solid {DIVIDER};
+        border-bottom: 1px solid {DIVIDER}; padding: 3px 8px; font-weight: 600;
+    }}
+    QTableView#csvTable QTableCornerButton::section {{ background: {ELEVATED}; border: none; }}
+    QTextBrowser#markdownPage {{
+        background: {SURFACE}; color: {TEXT_PRIMARY}; border: 1px solid {BORDER};
+        border-radius: 10px;
+        selection-background-color: {ACCENT}; selection-color: {ACCENT_ON};
+    }}
     QScrollArea#settingsScroll > QWidget > QWidget {{ background: transparent; }}
     QScrollArea#settingsScroll QScrollBar:vertical {{ width: 8px; margin: 0; }}
     QScrollArea#settingsScroll QScrollBar::handle:vertical {{

@@ -142,6 +142,7 @@ class OpeningMixin:
         self._update_edit_actions()
         self._update_dirty_state()
         self._update_lock()
+        self._update_archive_notice()
 
     def _prompt_password(self, message: str) -> str | None:
         return soft_dialog.prompt_text(
@@ -217,6 +218,7 @@ class OpeningMixin:
         self._update_open_state()
         self._update_edit_actions()
         self._update_lock()
+        self._update_archive_notice()
 
     def refresh_current(self) -> None:
         if self._backend is None:

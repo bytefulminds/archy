@@ -4,11 +4,20 @@ import contextlib
 import dataclasses
 import io
 import os
+import threading
 from collections.abc import Iterator
 from datetime import datetime
 from pathlib import Path
 
 from archy.core.backend import ArchiveBackend, ArchiveEntry, ArchiveInfo, EntryType
+from archy.core.backends.sevenzip_direct import (
+    Span,
+    SpanStream,
+    StoreIndex,
+    copy_to,
+    read_span,
+    read_whole,
+)
 from archy.core.errors import ArchiveError, EncryptedArchiveError
 from archy.i18n import tr
 
@@ -245,6 +254,12 @@ class SevenZipBackend(ArchiveBackend):
         self._moved: dict[str, str] = {}
         self._profile = None  # EditProfile, probed on first use
         self._disk: dict[str, ArchiveEntry] | None = None  # path -> on-disk entry
+        # Stored (uncompressed) files are read straight from the archive, at
+        # any offset, without py7zr (see sevenzip_direct.py). Built with the
+        # listing; None until then, or when the index could not be read.
+        self._direct: StoreIndex | None = None
+        self._verified: str | None = None  # password a direct read proved right
+        self._verify_lock = threading.Lock()
 
     @contextlib.contextmanager
     def _shared_archive(self, password: str | None):  # noqa: ANN202
@@ -278,6 +293,7 @@ class SevenZipBackend(ArchiveBackend):
         self._drop_shared()  # the file was rewritten by a save
         self._profile = None
         self._disk = None
+        self._direct = None
         super()._invalidate_caches()
 
     @property
@@ -296,6 +312,7 @@ class SevenZipBackend(ArchiveBackend):
         super().set_password(password)
         self._profile = None  # whether the names are encrypted depends on it
         self._disk = None
+        self._direct = None
 
     # ---------------------------------------------------------- edit profile
     def edit_profile(self):  # noqa: ANN201 - EditProfile
@@ -317,10 +334,67 @@ class SevenZipBackend(ArchiveBackend):
         """Name in the archive of an entry shown under ``path`` (renames)."""
         return self._moved.get(path, path)
 
+    # --------------------------------------------------------- direct reads
+    def _span(self, entry: ArchiveEntry) -> Span | None:
+        index = self._direct
+        if index is None or entry.is_dir or entry.path in self._pending:
+            return None
+        return index.span(self._source_path(entry.path))
+
+    def _reads_freely(self, entry: ArchiveEntry) -> bool:
+        # A direct read uses its own file handle: it never waits for a folder
+        # pass or another read.
+        return self._span(entry) is not None
+
+    def _verify_password(self, password: str | None) -> None:
+        """Before a partial read or a stream of an encrypted file (no checksum
+        to catch a wrong password), prove the password once by reading the
+        smallest encrypted file whole and checking its CRC."""
+        if password is None or password == self._verified or self._direct is None:
+            return
+        with self._verify_lock:
+            if password == self._verified:
+                return
+            smallest = self._direct.smallest_encrypted()
+            if smallest is not None:
+                read_whole(self.path, smallest[1], password)  # raises when wrong
+            self._verified = password
+
+    def _read_direct(self, span: Span, password: str | None, max_bytes: int | None) -> bytes:
+        if max_bytes is None or max_bytes >= span.size:
+            data = read_whole(self.path, span, password)
+            if span.aes is not None:
+                self._verified = password
+            return data
+        if span.aes is not None:
+            self._verify_password(password)
+        with open(self.path, "rb") as fh:
+            return read_span(fh, span, password, 0, max_bytes)
+
+    def can_stream(self, entry: ArchiveEntry) -> bool:
+        return self._span(entry) is not None
+
+    def open_stream(self, entry: ArchiveEntry) -> SpanStream | None:
+        span = self._span(entry)
+        if span is None or self._closed:
+            return None
+        password = self._effective_password(None)
+        if span.aes is not None:
+            if password is None:
+                raise EncryptedArchiveError(f"Entry is encrypted: {entry.path}")
+            self._verify_password(password)
+        return SpanStream(self.path, span, password)
+
     # ------------------------------------------------------------------ read
     def info(self) -> ArchiveInfo:
         count = sum(1 for _ in self.list_entries())
         return ArchiveInfo(path=self.path, format="7z", writable=True, entry_count=count)
+
+    def mixed_storage(self) -> tuple[int, int] | None:
+        index = self._direct
+        if index is None or not len(index) or not index.compressed_files:
+            return None
+        return len(index), index.compressed_files
 
     def list_entries(self) -> Iterator[ArchiveEntry]:
         # The listing is kept until the archive changes (save) or the password
@@ -334,6 +408,16 @@ class SevenZipBackend(ArchiveBackend):
             # Parsed once and kept for the reads that follow (see _shared_archive).
             with self._io_lock, self._shared_archive(self._password) as archive:
                 infos = archive.list()
+                shared: set[str] = set()
+                with contextlib.suppress(Exception):  # only for the size column
+                    for member in archive.files:
+                        folder = getattr(member, "folder", None)
+                        if folder is not None and len(getattr(folder, "files", None) or ()) > 1:
+                            shared.add(str(member.filename))
+                try:
+                    self._direct = StoreIndex.build(archive)
+                except Exception:  # noqa: BLE001 - direct reads are an optimisation
+                    self._direct = None
         except py7zr.Bad7zFile as exc:
             raise ArchiveError(f"Not a valid 7z archive: {self.path}: {exc}") from exc
         except py7zr.PasswordRequired as exc:
@@ -352,11 +436,18 @@ class SevenZipBackend(ArchiveBackend):
 
         for fi in infos:
             etype = _seven_type(fi)
+            compressed = getattr(fi, "compressed", None)
+            if str(fi.filename) in shared:
+                # In a solid block the archive only knows the packed size of
+                # the whole block; py7zr reports it on the block's first file
+                # (a 1.6 MB "compressed size" for a 140 KB photo). No figure
+                # is better than a wrong one.
+                compressed = None
             yield ArchiveEntry(
                 path=fi.filename.replace("\\", "/"),
                 type=etype,
                 size=int(getattr(fi, "uncompressed", 0) or 0),
-                compressed_size=getattr(fi, "compressed", None),
+                compressed_size=compressed,
                 modified=_seven_mtime(fi),
             )
 
@@ -377,6 +468,11 @@ class SevenZipBackend(ArchiveBackend):
     ) -> bytes:
         if entry.is_dir:
             return b""
+        if not entry.size and entry.path not in self._moved:
+            return b""
+        span = self._span(entry)
+        if span is not None:
+            return self._read_direct(span, self._effective_password(password), max_bytes)
         source = self._source_path(entry.path)
 
         import py7zr
@@ -438,6 +534,24 @@ class SevenZipBackend(ArchiveBackend):
         import zlib
 
         pw = self._effective_password(password)
+        # Stored files: read directly, one after another in archive order, so
+        # the disk reads front to back. No py7zr, and no lock that on-demand
+        # reads (a click) would have to wait for.
+        direct = [(e, span) for e in entries if (span := self._span(e)) is not None]
+        direct.sort(key=lambda item: (item[1].start, item[1].offset))
+        for entry, span in direct:
+            if is_cancelled is not None and is_cancelled():
+                return {}
+            try:
+                data = self._read_direct(span, pw, None)
+            except Exception:  # noqa: BLE001 - prefetch is best-effort
+                continue
+            if on_item is not None:
+                on_item(entry.path, data)
+        done = {e.path for e, _ in direct}
+        entries = [e for e in entries if e.path not in done]
+        if not entries:
+            return {}
         shown_as = {self._source_path(e.path): e.path for e in entries}  # source -> shown
         wanted = set(shown_as)
         out: dict[str, bytes] = {}
@@ -485,6 +599,11 @@ class SevenZipBackend(ArchiveBackend):
         # hands out; this one forwards each chunk straight to the sink, so a
         # multi-GB video goes to the encrypted temp store without ever being
         # held in memory. Cancelling raises out of write(), which aborts py7zr.
+        span = self._span(entry)
+        if span is not None:
+            copy_to(self.path, span, self._effective_password(None), sink)
+            return
+
         import py7zr
         from py7zr.io import Py7zIO, WriterFactory
 

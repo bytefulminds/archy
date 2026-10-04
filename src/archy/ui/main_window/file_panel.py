@@ -53,6 +53,7 @@ class FilePanelMixin:
         self._breadcrumb_layout.setSpacing(6)
         col.addWidget(self._breadcrumb)
 
+        col.addWidget(self._build_archive_notice())
         col.addWidget(self._build_list_toolbar())
 
         self._views = QStackedWidget()
@@ -70,6 +71,54 @@ class FilePanelMixin:
         col.addWidget(self._views, stretch=1)
         col.addWidget(self._build_status_strip())
         return panel
+
+    def _build_archive_notice(self) -> QWidget:
+        """A noticeable (not alarming) strip about the open archive, such as a
+        7z that is partly compressed. Informational: nothing to confirm."""
+        notice = QFrame()
+        notice.setObjectName("archiveNotice")
+        row = QHBoxLayout(notice)
+        row.setContentsMargins(12, 9, 8, 9)
+        row.setSpacing(10)
+        icon = QLabel()
+        icon.setPixmap(theme.symbol_icon("warning", 20, theme.WARNING).pixmap(20, 20))
+        icon.setAlignment(Qt.AlignmentFlag.AlignTop)
+        texts = QVBoxLayout()
+        texts.setContentsMargins(0, 0, 0, 0)
+        texts.setSpacing(2)
+        self._notice_title = QLabel()
+        self._notice_title.setObjectName("noticeTitle")
+        self._notice_text = QLabel()
+        self._notice_text.setObjectName("noticeText")
+        self._notice_text.setWordWrap(True)
+        texts.addWidget(self._notice_title)
+        texts.addWidget(self._notice_text)
+        close = QToolButton()
+        close.setObjectName("noticeClose")
+        close.setIcon(theme.symbol_icon("close", 16, theme.TEXT_SECONDARY))
+        close.setIconSize(QSize(16, 16))
+        close.setToolTip(tr("notice.hide"))
+        close.setCursor(Qt.CursorShape.PointingHandCursor)
+        close.clicked.connect(notice.hide)
+        row.addWidget(icon, alignment=Qt.AlignmentFlag.AlignTop)
+        row.addLayout(texts, stretch=1)
+        row.addWidget(close, alignment=Qt.AlignmentFlag.AlignTop)
+        notice.hide()
+        self._archive_notice = notice
+        return notice
+
+    def _update_archive_notice(self) -> None:
+        """Show the mixed-archive notice when the open archive needs it."""
+        mixed = self._backend.mixed_storage() if self._backend is not None else None
+        if mixed is None:
+            self._archive_notice.hide()
+            return
+        stored, compressed = mixed
+        self._notice_title.setText(tr("notice.mixed_title"))
+        self._notice_text.setText(
+            tr("notice.mixed_text", count=compressed, total=stored + compressed)
+        )
+        self._archive_notice.show()
 
     def _build_status_strip(self) -> QWidget:
         bar = QFrame()

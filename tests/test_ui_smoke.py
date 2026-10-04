@@ -567,3 +567,207 @@ def test_the_window_is_built_in_the_chosen_language() -> None:
     assert english._open_button.text() == "Open"
     assert english._status_selection.text() == "No selection"
     english.close()
+
+
+def test_video_in_a_stored_7z_plays_straight_from_the_archive(tmp_path) -> None:  # noqa: ANN001
+    # A 7z made with Store: the video plays through a device that reads the
+    # archive on demand, at once, without loading it into memory first.
+    import io
+    import time
+
+    py7zr = pytest.importorskip("py7zr")
+    av = pytest.importorskip("av")
+    import numpy as np
+
+    from archy.services.encrypted_device import ReaderDevice
+    from archy.ui import theme
+    from archy.ui.main_window import MainWindow
+
+    video = io.BytesIO()
+    with av.open(video, "w", format="mp4") as out:
+        stream = out.add_stream("mpeg4", rate=25)
+        stream.width, stream.height, stream.pix_fmt = 64, 48, "yuv420p"
+        for i in range(25):
+            frame = av.VideoFrame.from_ndarray(
+                np.full((48, 64, 3), i * 8, np.uint8), format="rgb24"
+            )
+            for packet in stream.encode(frame):
+                out.mux(packet)
+        for packet in stream.encode():
+            out.mux(packet)
+    archive = tmp_path / "stored.7z"
+    filters = [{"id": py7zr.FILTER_COPY}, {"id": py7zr.FILTER_CRYPTO_AES256_SHA256}]
+    with py7zr.SevenZipFile(
+        archive, "w", filters=filters, password="geheim", header_encryption=True
+    ) as z:
+        z.writestr(video.getvalue(), "shoot/clip.mp4")
+        z.writestr(b"notes", "shoot/notes.txt")
+
+    app = _app()
+    theme.apply(app)
+    window = MainWindow()
+    window._prompt_password = lambda _message: "geheim"
+    window.resize(900, 600)
+    window.show()
+    _open(window, archive)
+    window._enter_folder(window._nav[0].children["shoot"])
+    reads = []
+    original = window._backend.read_bytes
+    window._backend.read_bytes = lambda *a, **k: reads.append(a) or original(*a, **k)
+
+    window._req_id += 1
+    window._preview_node(window._nav[-1].children["clip.mp4"], window._req_id)
+    layout = window._preview_layout
+    widget = layout.itemAt(0).widget() if layout.count() else None
+    assert isinstance(getattr(widget, "_video_device", None), ReaderDevice)  # at once
+    assert reads == []  # never read whole
+    player = widget._video_player
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline and player.duration() <= 0:
+        app.processEvents()
+        time.sleep(0.01)
+    assert player.duration() > 0  # the player reads it fine through the device
+    window.close()
+
+
+def test_ctrl_f_finds_in_the_previewed_file_and_pages_read_their_css(tmp_path) -> None:  # noqa: ANN001
+    import zipfile
+
+    from PySide6.QtWidgets import QApplication
+
+    from archy.ui import theme
+    from archy.ui.main_window import MainWindow
+
+    archive = tmp_path / "site.zip"
+    with zipfile.ZipFile(archive, "w") as z:
+        z.writestr("site/data.json", '{"name": "Archy", "other": "archy"}')
+        z.writestr("site/index.html", '<link rel="stylesheet" href="css/s.css"><p>x</p>')
+        z.writestr("site/css/s.css", "p { color: #00aa00; }")
+    app = _app()
+    theme.apply(app)
+    window = MainWindow()
+    window.resize(1300, 820)
+    window.show()
+    _open(window, archive)
+    window._enter_folder(window._nav[0].children["site"])
+
+    window._req_id += 1
+    window._preview_node(window._nav[-1].children["data.json"], window._req_id)
+    preview = window._preview_layout.itemAt(0).widget()
+    for _ in range(200):  # zip text opens synchronously; others via the loader
+        if hasattr(preview, "open_find"):
+            break
+        app.processEvents()
+        preview = window._preview_layout.itemAt(0).widget()
+    window.activateWindow()
+    preview.edit.setFocus()
+    app.processEvents()
+    window._find_action.trigger()  # Ctrl+F / Cmd+F with the focus in the file
+    assert preview.find_bar.isVisible()
+    preview.find_bar.field.setText("archy")
+    assert preview.find_bar.counter.text() == "1/2"
+
+    window._current_view().setFocus()  # focus in the file list: filter the folder
+    app.processEvents()
+    preview.find_bar.close_bar()
+    window._current_view().setFocus()
+    app.processEvents()
+    window._find_action.trigger()
+    assert QApplication.focusWidget() is window._search
+    assert not preview.find_bar.isVisible()
+
+    read = window._archive_resources(window._nav[-1].children["index.html"])
+    assert read("css/s.css") == b"p { color: #00aa00; }"
+    assert read("../../outside.css") is None  # never outside the archive
+    assert read("https://example.com/x.css") is None
+    window.close()
+
+
+def test_mixed_7z_shows_a_notice_and_previews_show_file_details(tmp_path) -> None:  # noqa: ANN001
+    # A Store 7z with files added compressed: a notice (no dialog) says so.
+    # Selecting a file shows what is known about it under its name, not the
+    # type and size that the footer already shows.
+    import io
+    import time
+
+    py7zr = pytest.importorskip("py7zr")
+    from PySide6.QtGui import QColor, QImage
+
+    from archy.ui import theme
+    from archy.ui.main_window import MainWindow
+
+    image = QImage(320, 200, QImage.Format.Format_RGB32)
+    image.fill(QColor("#336699"))
+    png = io.BytesIO()
+    from PySide6.QtCore import QBuffer, QByteArray
+
+    data = QByteArray()
+    buffer = QBuffer(data)
+    buffer.open(QBuffer.OpenModeFlag.WriteOnly)
+    image.save(buffer, "PNG")
+    png.write(bytes(data))
+    archive = tmp_path / "mixed.7z"
+    with py7zr.SevenZipFile(archive, "w", filters=[{"id": py7zr.FILTER_COPY}]) as z:
+        z.writestr(png.getvalue(), "photo.png")
+        z.writestr(b"one\ntwo\nthree\n", "notes.txt")
+    with py7zr.SevenZipFile(archive, "a") as z:
+        z.writestr(b"later " * 100, "added.txt")
+
+    app = _app()
+    theme.apply(app)
+    window = MainWindow()
+    window.resize(900, 600)
+    window.show()
+    _open(window, archive)
+    assert window._archive_notice.isVisible()
+    assert "1" in window._notice_text.text() and "3" in window._notice_text.text()
+
+    def shown(path: str) -> str:
+        window._select_path(path)
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline:
+            app.processEvents()
+            text = window._preview_sub.full_text()
+            if "px" in text or "lines" in text:
+                break
+            time.sleep(0.01)
+        return window._preview_sub.full_text()
+
+    assert shown("photo.png") == "320 × 200 px"
+    # The zoom readout always fits its pill (it used to clip "100%").
+    label = window._stage_zoom_val
+    label.setText("100%")
+    window._on_preview_scale_changed(100)
+    assert label.width() >= label.fontMetrics().horizontalAdvance("100%")
+    assert shown("notes.txt") == "3 lines · UTF-8"
+    window.close_archive()
+    assert not window._archive_notice.isVisible()
+    window.close()
+
+
+def test_pdf_preview_knows_its_pages_title_and_author() -> None:
+    from PySide6.QtCore import QBuffer, QByteArray
+    from PySide6.QtGui import QPainter, QPdfWriter
+
+    from archy.services.providers import build_preview_widget
+
+    app = _app()
+    data = QByteArray()
+    buffer = QBuffer(data)
+    buffer.open(QBuffer.OpenModeFlag.WriteOnly)
+    writer = QPdfWriter(buffer)
+    writer.setTitle("Reisverslag")
+    if hasattr(writer, "setAuthor"):
+        writer.setAuthor("Mark")
+    painter = QPainter(writer)
+    painter.drawText(100, 100, "one")
+    writer.newPage()
+    painter.drawText(100, 100, "two")
+    painter.end()
+    buffer.close()
+    widget = build_preview_widget("trip.pdf", bytes(data))
+    app.processEvents()
+    details = dict(widget._zx_details.items)
+    assert details["details.pages"] == "2 pages"
+    assert details["details.title"] == "Reisverslag"
+    widget._zx_cleanup()

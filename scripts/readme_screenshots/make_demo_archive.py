@@ -77,8 +77,30 @@ def finish(img, blur=0.0):
     if blur:
         pic = pic.filter(ImageFilter.GaussianBlur(blur))
     buf = io.BytesIO()
-    pic.save(buf, "JPEG", quality=88)
+    pic.save(buf, "JPEG", quality=88, exif=camera_exif())
     return buf.getvalue()
+
+
+_shot = [0]
+
+
+def camera_exif():
+    """Plausible camera settings, so the preview shows what a real photo shows."""
+    from PIL.TiffImagePlugin import IFDRational
+
+    _shot[0] += 1
+    n = _shot[0]
+    exif = Image.Exif()
+    exif[271] = "SONY"
+    exif[272] = "ILCE-7M4"
+    ifd = exif.get_ifd(0x8769)
+    ifd[42036] = "FE 24-70mm F2.8 GM II"
+    ifd[37386] = IFDRational((24, 35, 50, 70)[n % 4])
+    ifd[33437] = IFDRational((8, 11, 56, 28)[n % 4], 10 if n % 4 >= 2 else 1)
+    ifd[33434] = IFDRational(1, (250, 125, 60, 1000)[n % 4])
+    ifd[34855] = (100, 200, 400, 100)[n % 4]
+    ifd[36867] = f"2026:06:0{1 + n % 6} {5 + n % 14:02d}:{(n * 7) % 60:02d}:10"
+    return exif
 
 
 def mountains_sunset(seed=0):
@@ -194,17 +216,133 @@ SCENES = {
 DOCS = {
     "Documenten/reisplanning.md": """# Reisplanning Dolomieten
 
-| Dag | Route | Afstand |
-| --- | --- | --- |
-| 1 | Cortina - Tre Cime | 24 km |
-| 2 | Lago di Braies | 8 km |
-| 3 | Seceda | 12 km |
+Zes dagen wandelen en fotograferen rond **Cortina d'Ampezzo**, van
+*zonsopgang tot blauwe uur*.
+
+## Route
+
+| Dag | Route | Afstand | Licht |
+| --- | --- | --- | --- |
+| 1 | Cortina - Tre Cime | 24 km | Zonsondergang |
+| 2 | Lago di Braies | 8 km | Zonsopgang |
+| 3 | Seceda | 12 km | Blauwe uur |
+| 4 | Passo Giau | 6 km | Zonsopgang |
+
+> Wekker om 04:30: het meer is alleen vroeg spiegelglad.
+
+## Inpaklijst
 
 - Paspoort en verzekeringspas
 - Powerbank, statief, ND-filters
+- Regenjas en `extra geheugenkaart`
+
+## Na thuiskomst
+
+1. Foto's sorteren per dag
+2. Beste selectie in het archief `backup_2026.7z`
 """,
     "Documenten/notities.txt": "Wekker 04:30 voor de zonsopgang bij het meer.\n"
     "Parkeren bij Auronzo vooraf reserveren.\n",
+    "Documenten/uitgaven.csv": """Datum;Omschrijving;Categorie;Bedrag;Betaald door
+2026-06-01;Brandstof heenreis;Reizen;92,40;Mark
+2026-06-02;Hotel Cortina (4 nachten);Verblijf;612,00;Mark
+2026-06-02;Tol Brennerpas;Reizen;11,80;Cinzia
+2026-06-02;Vignet Oostenrijk;Reizen;11,50;Cinzia
+2026-06-03;Parkeren Auronzo;Reizen;30,00;Mark
+2026-06-03;Rifugio Locatelli;Eten;46,50;Cinzia
+2026-06-03;Koffie en strudel;Eten;14,20;Mark
+2026-06-04;Kabelbaan Seceda;Uitjes;72,00;Mark
+2026-06-04;ND-filter 6 stops;Fotografie;89,95;Mark
+2026-06-04;Lunch Rifugio Firenze;Eten;31,60;Cinzia
+2026-06-05;Pizzeria Al Passo;Eten;38,20;Cinzia
+2026-06-05;Parkeren Lago di Braies;Reizen;20,00;Mark
+2026-06-05;Geheugenkaart 128 GB;Fotografie;34,99;Mark
+2026-06-06;Kabelbaan Lagazuoi;Uitjes;48,00;Cinzia
+2026-06-06;Diner Cortina;Eten;67,80;Mark
+2026-06-07;Brandstof terugreis;Reizen;84,10;Mark
+""",
+    "Documenten/camera.json": """{
+  "camera": "Sony A7 IV",
+  "firmware": "4.01",
+  "lenses": [
+    "16-35mm f/4",
+    "24-70mm f/2.8",
+    "70-200mm f/4"
+  ],
+  "presets": {
+    "sunrise": {
+      "iso": 100,
+      "aperture": 11,
+      "shutter": "1/15",
+      "nd_filter": true
+    },
+    "astro": {
+      "iso": 3200,
+      "aperture": 2.8,
+      "shutter": "20s",
+      "nd_filter": false
+    }
+  },
+  "raw_and_jpeg": true,
+  "tripod": true,
+  "gps": null,
+  "notes": "Batterij 2 vervangen na de reis"
+}
+""",
+    "Website/index.html": """<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<title>Dolomieten 2026</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="hero">
+  <img src="banner.png" alt="">
+  <div class="hero-text">
+    <span class="badge">Reisverslag</span>
+    <h1>Dolomieten 2026</h1>
+    <p>Zes dagen wandelen en fotograferen rond Cortina d'Ampezzo.</p>
+  </div>
+</header>
+<main>
+  <h2>Hoogtepunten</h2>
+  <section class="cards">
+    <article><strong>214</strong><span>Tre Cime</span><em>Zonsondergang</em></article>
+    <article><strong>156</strong><span>Lago di Braies</span><em>Zonsopgang</em></article>
+    <article><strong>98</strong><span>Seceda</span><em>Blauwe uur</em></article>
+  </section>
+  <p class="note">Alle foto's staan in de map <b>Foto's/2026-06 Dolomieten</b>.</p>
+</main>
+</body>
+</html>
+""",
+    "Website/style.css": """:root { --ink: #2b2d42; --accent: #c8553d; --green: #2d6a4f; }
+body { margin: 0; font-family: Georgia, serif; color: var(--ink); background: #f6f1eb; }
+.hero { position: relative; }
+.hero img { display: block; width: 100%; height: 190px; object-fit: cover; }
+.hero-text {
+  position: absolute; inset: auto 0 0 0; padding: 18px 22px;
+  background: linear-gradient(transparent, rgba(20, 12, 30, 0.85)); color: #fff;
+}
+.hero-text h1 { margin: 6px 0 2px; font-size: 30px; letter-spacing: 0.5px; }
+.hero-text p { margin: 0; opacity: 0.85; }
+.badge {
+  background: var(--accent); color: #fff; font: 600 11px sans-serif;
+  text-transform: uppercase; letter-spacing: 1px; padding: 3px 9px; border-radius: 999px;
+}
+main { padding: 6px 22px 18px; }
+h2 { color: var(--green); border-bottom: 2px solid #f4a261; padding-bottom: 4px; }
+.cards { display: flex; flex-wrap: wrap; gap: 12px; }
+.cards article {
+  flex: 1 1 120px; display: flex; flex-direction: column; gap: 2px;
+  background: #fff; border-radius: 14px; padding: 14px 16px;
+  box-shadow: 0 6px 18px rgba(43, 45, 66, 0.12);
+}
+.cards strong { font-size: 26px; color: var(--accent); }
+.cards em { color: #8d99ae; font-size: 13px; }
+.note { color: #8d99ae; font-style: italic; margin-top: 16px; }
+""",
     "Scripts/rename_photos.py": '''"""Rename camera files to date-based names."""
 
 from datetime import datetime
@@ -228,17 +366,25 @@ if __name__ == "__main__":
 
 
 def make_video() -> bytes:
+    """A slow zoom into the sunset scene, like a short timelapse clip."""
     with tempfile.TemporaryDirectory() as tmp:
+        still = Path(tmp) / "still.jpg"
+        still.write_bytes(mountains_sunset())
         out = Path(tmp) / "v.mp4"
+        zoom = "zoompan=z='1+0.0012*on':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=150:s=1280x720"
         subprocess.run(
             [
                 "ffmpeg",
                 "-loglevel",
                 "error",
-                "-f",
-                "lavfi",
+                "-loop",
+                "1",
                 "-i",
-                "gradients=s=1280x720:d=4:speed=0.02:c0=0x2a2160:c1=0xf29a5a:x0=0:y0=0:x1=1280:y1=720",
+                str(still),
+                "-vf",
+                zoom,
+                "-t",
+                "5",
                 "-c:v",
                 "libx264",
                 "-pix_fmt",
@@ -250,15 +396,28 @@ def make_video() -> bytes:
         return out.read_bytes()
 
 
+def banner() -> bytes:
+    """The header image of the demo web page."""
+    image = Image.open(io.BytesIO(mountains_sunset()))
+    image = image.crop((0, image.height // 4, image.width, image.height * 3 // 4))
+    image = image.resize((560, 180), Image.LANCZOS)
+    out = io.BytesIO()
+    image.save(out, "PNG")
+    return out.getvalue()
+
+
 def build(out: str | Path) -> Path:
     files = {name: fn() for name, fn in SCENES.items()}
     files.update({k: v.encode() for k, v in DOCS.items()})
+    files["Website/banner.png"] = banner()
     try:
         files["Foto's/2026-06 Dolomieten/timelapse_wolken.mp4"] = make_video()
     except Exception as exc:  # noqa: BLE001
         print("no video:", exc)
     Path(out).unlink(missing_ok=True)
-    with py7zr.SevenZipFile(out, "w") as z:
+    # Store (no compression), like the backups Archy is made for: every file
+    # is read directly, and the video plays straight from the archive.
+    with py7zr.SevenZipFile(out, "w", filters=[{"id": py7zr.FILTER_COPY}]) as z:
         for name, data in files.items():
             z.writef(io.BytesIO(data), name)
     return Path(out)

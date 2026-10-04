@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import contextlib
+import posixpath
+from urllib.parse import unquote
 
 from PySide6.QtCore import (
     QEvent,
@@ -10,6 +12,7 @@ from PySide6.QtCore import (
     QTimer,
 )
 from PySide6.QtWidgets import (
+    QApplication,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -22,21 +25,25 @@ from PySide6.QtWidgets import (
 )
 
 from archy.core import memory
+from archy.core.errors import ArchiveError, EncryptedArchiveError
 from archy.core.tree import TreeNode
 from archy.i18n import tr
-from archy.services.encrypted_device import EncryptedBlobDevice
+from archy.services import file_details
+from archy.services.encrypted_device import EncryptedBlobDevice, ReaderDevice
 from archy.services.formatting import format_modified, format_ratio, format_size
 from archy.services.preview import PreviewKind, kind_for_name
 from archy.services.providers import (
     build_preview_widget,
     build_preview_widget_from_device,
-    make_text_edit,
+    details_of,
+    make_text_preview,
 )
 from archy.services.text_decode import decode_text, looks_binary
 from archy.ui import soft_dialog, theme
 from archy.ui.archive_model import (
     category_of,
 )
+from archy.ui.elided_label import ElidedLabel
 from archy.ui.main_window.chrome import (
     FullscreenWindow as _FullscreenWindow,
 )
@@ -51,6 +58,9 @@ from archy.ui.main_window.constants import (
     FOOTER_HEIGHT,
     category_label,
 )
+
+# Stylesheets and images a page refers to, read from the archive.
+_RESOURCE_MAX_BYTES = 8 * 1024 * 1024
 
 
 class PreviewMixin:
@@ -76,9 +86,9 @@ class PreviewMixin:
         titles = QVBoxLayout()
         titles.setContentsMargins(0, 0, 0, 0)
         titles.setSpacing(1)
-        self._preview_title = QLabel(tr("preview.none_selected"))
+        self._preview_title = ElidedLabel(tr("preview.none_selected"), Qt.TextElideMode.ElideMiddle)
         self._preview_title.setObjectName("previewTitle")
-        self._preview_sub = QLabel("")
+        self._preview_sub = ElidedLabel("")
         self._preview_sub.setObjectName("previewSub")
         titles.addWidget(self._preview_title)
         titles.addWidget(self._preview_sub)
@@ -223,6 +233,11 @@ class PreviewMixin:
         cy = (h - 30) // 2
         self._stage_nav_prev.move(24, cy)
         self._stage_nav_next.move(w - 30 - 24, cy)
+        # Room for the widest readout, so the pill neither clips "100%" nor
+        # changes width while zooming.
+        label = self._stage_zoom_val
+        label.ensurePolished()
+        label.setMinimumWidth(label.fontMetrics().horizontalAdvance("8888%") + 10)
         self._stage_controls.adjustSize()
         cw = self._stage_controls.width()
         self._stage_controls.move((w - cw) // 2, h - self._stage_controls.height() - 22)
@@ -252,6 +267,8 @@ class PreviewMixin:
 
     def _on_preview_scale_changed(self, percent: int) -> None:
         self._stage_zoom_val.setText(f"{percent}%")
+        if self._stage_controls.isVisible():
+            self._position_stage_overlay()  # the pill fits the new text
 
     def eventFilter(self, obj, event) -> bool:  # noqa: ANN001, N802
         if obj is self._preview_container and event.type() == QEvent.Type.Resize:
@@ -292,6 +309,7 @@ class PreviewMixin:
     def _set_preview_widget(self, widget: QWidget, *, full_bleed: bool = False) -> None:
         # While fullscreen, previews render into the fullscreen window instead of
         # the side panel (so arrow-key navigation shows there).
+        self._bind_details(widget)
         if self._fs_window is not None:
             self._fs_window.set_content(widget)
             return
@@ -308,6 +326,25 @@ class PreviewMixin:
         # wheel (frame-step while paused) work right after selecting it.
         if hasattr(widget, "_video_player"):
             widget.setFocus()
+
+    def _bind_details(self, widget: QWidget) -> None:
+        """Show what the preview knows about the file (pixels, pages, length,
+        lines) under its name, now or when the preview finds out."""
+        source = getattr(widget, "_zx_details", None)
+        if source is None:
+            return  # a loading or message widget: keep the line as it is
+
+        def show() -> None:
+            if self._preview_layout.indexOf(widget) < 0 and (
+                self._fs_window is None or not self._fs_window.isAncestorOf(widget)
+            ):
+                return  # no longer the shown preview
+            self._details = list(source.items)
+            if source.items:
+                self._preview_sub.setText(file_details.subtitle(source.items))
+
+        source.changed.connect(show)
+        QTimer.singleShot(0, show)  # after the widget is placed
 
     def _bind_stage_overlay(self, widget: QWidget) -> None:
         """Show the on-image zoom pill / nav chevrons only for image previews and
@@ -356,6 +393,7 @@ class PreviewMixin:
     def _set_preview_title(self, title: str, sub: str) -> None:
         self._preview_title.setText(title)
         self._preview_sub.setText(sub)
+        self._details = []
 
     def _set_footer(self, node: TreeNode | None) -> None:
         if node is None or node.is_dir:
@@ -456,6 +494,10 @@ class PreviewMixin:
             lines.append(tr("info.ratio", value=format_ratio(node.size, compressed)))
         if node.modified is not None:
             lines.append(tr("info.modified", value=format_modified(node.modified)))
+        details = getattr(self, "_details", [])
+        if details:
+            lines.append("")
+            lines.extend(tr(key, value=value) for key, value in details)
         soft_dialog.message(self, tr("preview.file_info"), "\n".join(lines))
 
     def _preview_node(self, node: TreeNode, request_id: int) -> None:
@@ -480,6 +522,11 @@ class PreviewMixin:
             and node.size <= _EDITOR_MAX
         ):
             self._open_editable_text(node)
+            return
+
+        if kind in (PreviewKind.VIDEO, PreviewKind.PDF) and self._preview_streamed(
+            node, kind, request_id
+        ):
             return
 
         too_big = kind is not PreviewKind.TEXT and node.size > self._media_size_limit(kind, node)
@@ -521,6 +568,84 @@ class PreviewMixin:
         max_bytes = _TEXT_PREVIEW_BYTES if kind is PreviewKind.TEXT else None
         self._loader.submit(request_id, self._backend, node.entry, max_bytes)
 
+    def _preview_streamed(self, node: TreeNode, kind: PreviewKind, request_id: int) -> bool:
+        """Play a video (or open a PDF) straight from the archive when the
+        format allows reading it at any offset (a 7z made with Store): it
+        starts at once, whatever its size, and is never loaded whole into
+        memory or written to disk. False when that is not possible."""
+        assert self._backend is not None and node.entry is not None
+        try:
+            stream = self._backend.open_stream(node.entry)
+        except EncryptedArchiveError:
+            self._req_node = node
+            self._req_kind = kind
+            self._on_preview_failed(request_id, "encrypted")  # asks for the password
+            return True
+        except (ArchiveError, OSError):
+            return False
+        if stream is None:
+            return False
+        self._req_node = node
+        self._req_kind = kind
+        self._clear_editor()
+        self._set_fullscreenable(kind in _MEDIA_KINDS)
+        self._set_nav_enabled(True)
+        device = ReaderDevice(stream, stream.size)
+        self._set_preview_widget(
+            build_preview_widget_from_device(node.name, device),
+            full_bleed=kind is PreviewKind.PDF,
+        )
+        self._temp.clear_preview()  # a previously spilled preview is no longer shown
+        return True
+
+    def _archive_resources(self, node: TreeNode):  # noqa: ANN202 - (str) -> bytes | None
+        """Reads the files a page refers to (stylesheets, images) from the same
+        archive, relative to the page, in memory. Only what is cheap to read
+        right now (zip, stored 7z, or already in the folder buffer): the page
+        renders on the UI thread, and decoding a solid 7z block there would
+        freeze the window. Never anything outside the archive."""
+        backend = self._backend
+        root = self._nav[0] if self._nav else None
+        base = posixpath.dirname(node.path)
+
+        def read(reference: str) -> bytes | None:
+            if backend is None or root is None:
+                return None
+            reference = unquote(reference.split("#", 1)[0].split("?", 1)[0])
+            if not reference or reference.startswith("/"):
+                return None
+            path = posixpath.normpath(posixpath.join(base, reference))
+            if path == ".." or path.startswith("../"):
+                return None  # outside the archive
+            target = root
+            for part in path.split("/"):
+                target = target.children.get(part) if target is not None else None
+            entry = target.entry if target is not None and not target.is_dir else None
+            if entry is None or int(entry.size or 0) > _RESOURCE_MAX_BYTES:
+                return None
+            if not (
+                backend.fast_seek or backend.can_stream(entry) or backend.has_buffered(entry.path)
+            ):
+                return None
+            try:
+                return backend.read_bytes(entry)
+            except Exception:  # noqa: BLE001 - a missing resource is just not shown
+                return None
+
+        read.base = base  # type: ignore[attr-defined] - where the page lives (web_view)
+        return read
+
+    def _find_in_preview_or_folder(self) -> None:
+        """Ctrl+F / Cmd+F: with the focus in a text preview, find in that file;
+        otherwise filter the current folder."""
+        widget = self._preview_layout.itemAt(0).widget() if self._preview_layout.count() else None
+        focus = QApplication.focusWidget()
+        open_find = getattr(widget, "open_find", None)
+        if open_find is not None and focus is not None and widget.isAncestorOf(focus):
+            open_find()
+            return
+        self._focus_search("folder")
+
     def _open_editable_text(self, node: TreeNode) -> None:
         assert self._backend is not None and node.entry is not None
         data = self._read_unlocking(node)
@@ -537,12 +662,19 @@ class PreviewMixin:
             self._clear_editor()
             self._set_fullscreenable(False)
             self._set_nav_enabled(True)
-            self._set_preview_widget(make_text_edit(decoded.text, editable=False))
+            widget, _edit = make_text_preview(
+                node.name, decoded.text, editable=False, resources=self._archive_resources(node)
+            )
+            details_of(widget, file_details.text_details(decoded.text, decoded.encoding))
+            self._set_preview_widget(widget)
             return
-        editor = make_text_edit(decoded.text, editable=True)
+        widget, editor = make_text_preview(
+            node.name, decoded.text, editable=True, resources=self._archive_resources(node)
+        )
+        details_of(widget, file_details.text_details(decoded.text, decoded.encoding))
         self._set_fullscreenable(False)
         self._set_nav_enabled(True)
-        self._set_preview_widget(editor)
+        self._set_preview_widget(widget)
         self._editor = editor
         self._editing_node = node
         self._edit_encoding = decoded.encoding
@@ -563,7 +695,16 @@ class PreviewMixin:
                 text += tr("preview.text_partial")
             self._set_fullscreenable(False)
             self._set_nav_enabled(True)
-            self._set_preview_widget(make_text_edit(text, editable=False))
+            widget, _edit = make_text_preview(
+                node.name, text, editable=False, resources=self._archive_resources(node)
+            )
+            details_of(
+                widget,
+                file_details.text_details(
+                    decoded.text, decoded.encoding, partial=node.size > len(data)
+                ),
+            )
+            self._set_preview_widget(widget)
         else:
             full_bleed = self._req_kind in (PreviewKind.IMAGE, PreviewKind.PDF)
             self._set_fullscreenable(self._req_kind in _MEDIA_KINDS)

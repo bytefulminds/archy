@@ -1,8 +1,9 @@
 """Regenerate the screenshots in docs/screenshots/ for the README.
 
 Builds the synthetic demo archive, opens it in Archy offscreen at 2x scale and
-grabs the main window, the extraction window and the settings. Run it after UI
-changes:
+grabs the showcase in the README: browsing, previews (video, code, Markdown,
+CSV, JSON, HTML), find and search, the extraction window, the unlock dialog and
+the settings. Run it after UI changes:
 
     pip install numpy pillow
     python scripts/readme_screenshots/take_screenshots.py
@@ -43,6 +44,9 @@ from PIL import Image  # noqa: E402
 from PySide6.QtCore import QCoreApplication, QEvent  # noqa: E402
 from PySide6.QtWidgets import QApplication, QToolButton  # noqa: E402
 
+from archy.services import web_view  # noqa: E402
+
+web_view.prepare()  # web pages through QtWebEngine, as in the app
 app = QApplication([])
 QCoreApplication.setOrganizationName("ArchyScreenshots")
 QCoreApplication.setApplicationName("ArchyScreenshots")
@@ -68,15 +72,66 @@ def pump(seconds: float) -> None:
         time.sleep(0.01)
 
 
-def save(widget, name: str, width: int | None = None) -> None:  # noqa: ANN001
+def save(widget, name: str, width: int | None = None, paint=None, region=None, aspect=None) -> None:  # noqa: ANN001, E501
+    """Grab ``widget``; ``region`` (widgets inside it) crops the shot to the
+    area they cover, so a README tile shows the part that matters, readable;
+    ``aspect`` caps its height (as a share of its width), cutting the empty
+    bottom of a short file."""
+    from PySide6.QtCore import QPoint, QRect
+
     pump(0.3)
     raw = Path(tempfile.mkdtemp()) / "shot.png"
-    widget.grab().save(str(raw))
+    shot = widget.grab()
+    if paint is not None:
+        paint(shot)
+    if region:
+        area = QRect()
+        for part in region:
+            area = area.united(QRect(part.mapTo(widget, QPoint(0, 0)), part.size()))
+        if aspect:
+            area.setHeight(min(area.height(), round(area.width() * aspect)))
+        ratio = shot.devicePixelRatio()
+        shot = shot.copy(
+            QRect(
+                round(area.x() * ratio),
+                round(area.y() * ratio),
+                round(area.width() * ratio),
+                round(area.height() * ratio),
+            )
+        )
+    shot.save(str(raw))
     image = Image.open(raw).convert("RGBA")
     if width and image.width > width:
         image = image.resize((width, round(image.height * width / image.width)), Image.LANCZOS)
     image.save(OUT / name, optimize=True)
     print("saved", OUT / name)
+
+
+def paint_frame(window, shot, path: str) -> None:  # noqa: ANN001
+    """Paint the video's frame into the (black, offscreen) video widget."""
+    from PySide6.QtCore import QPoint, QRect, Qt
+    from PySide6.QtGui import QPainter
+    from PySide6.QtMultimediaWidgets import QVideoWidget
+
+    from archy.ui.thumbnail_loader import _decode_video_frame
+
+    entry = next(e for e in window._backend.list_entries() if e.path == path)
+    frame = _decode_video_frame(window._backend.read_bytes(entry))
+    targets = [w for w in window.findChildren(QVideoWidget) if w.isVisible()]
+    if frame is None or not targets:
+        return
+    target = targets[-1]
+    # The painter works in logical pixels; the image carries the 2x ratio.
+    ratio = shot.devicePixelRatio()
+    area = QRect(target.mapTo(window, QPoint(0, 0)), target.size())
+    picture = frame.scaled(area.size() * ratio, Qt.AspectRatioMode.KeepAspectRatio)
+    picture.setDevicePixelRatio(ratio)
+    width, height = picture.width() / ratio, picture.height() / ratio
+    left = area.x() + round((area.width() - width) / 2)
+    top = area.y() + round((area.height() - height) / 2)
+    painter = QPainter(shot)
+    painter.drawImage(QPoint(left, top), picture)
+    painter.end()
 
 
 def main() -> None:
@@ -111,11 +166,73 @@ def main() -> None:
     pump(3)
     save(window, "browse-thumbnails.png", 1920)
 
-    view(0)  # Lijst
+    # The video, playing straight from the (stored) archive. The offscreen
+    # platform cannot draw video, so the frame the player shows is painted
+    # into the video area from the same file.
+    video = "Foto's/2026-06 Dolomieten/timelapse_wolken.mp4"
+    window._select_path(video)
+    pump(3)
+    panels = [window._file_panel, window._preview_panel]
+    save(
+        window,
+        "preview-video.png",
+        1600,
+        paint=lambda shot: paint_frame(window, shot, video),
+        region=panels,
+    )
+
+    view(0)  # List
     go("Scripts")
     window._select_path("Scripts/rename_photos.py")
     pump(2)
     save(window, "preview-code.png", 1920)
+
+    # The document and data shots show the preview pane, made wider.
+    sizes = window._splitter.sizes()
+    window._splitter.setSizes([sizes[0], 470, sum(sizes) - sizes[0] - 470])
+    pump(0.3)
+    pane = [window._preview_panel]
+
+    # Find in the file (Ctrl+F with the focus in the preview). The find bar
+    # sits at the bottom of the pane, so the window is made lower instead of
+    # cropping the shot.
+    preview = window._preview_layout.itemAt(0).widget()
+    preview.open_find()
+    preview.find_bar.field.setText("photo")
+    window.resize(1440, 520)
+    pump(0.5)
+    save(window, "find-in-file.png", 1100, region=pane)
+    preview.find_bar.close_bar()
+    window.resize(1440, 900)
+    pump(0.3)
+
+    go("Documenten")
+    for path, name in (
+        ("Documenten/reisplanning.md", "preview-markdown.png"),
+        ("Documenten/uitgaven.csv", "preview-csv.png"),
+        ("Documenten/camera.json", "preview-json.png"),
+    ):
+        window._select_path(path)
+        pump(2)
+        save(window, name, 1100, region=pane, aspect=0.8)
+
+    go("Website")
+    window._select_path("Website/index.html")
+    pump(2)
+    save(window, "preview-html.png", 1100, region=pane, aspect=0.8)
+    window._splitter.setSizes(sizes)
+    pump(0.3)
+
+    # Search through the whole archive.
+    go()
+    window._focus_search("archive")
+    window._search.setText("dolomieten")
+    pump(1.5)
+    window._select_path("Foto's/2026-06 Dolomieten/meer_bij_zonsopgang.jpg")
+    pump(2)
+    save(window, "search-archive.png", 1600, region=panels)
+    window._search.clear()
+    pump(0.5)
 
     total = 48 * 1024**3
     dialog = ExtractProgressDialog(window, "backup_2026.7z", "/Users/demo/Restore", 101_648, total)
@@ -141,6 +258,10 @@ def main() -> None:
         pump(0.5)
         tabs = [b for b in dlg.findChildren(QToolButton) if b.objectName() == "viewButton"]
         tabs[1].click()  # Temporary files
+        # Only as tall as this tab needs (the pages scroll), no empty bottom.
+        dlg.setMinimumSize(0, 0)
+        dlg.resize(dlg.width(), 610)
+        pump(0.3)
         save(dlg, "settings-temp-files.png")
         dlg.done(0)
         return 0
@@ -151,7 +272,44 @@ def main() -> None:
         window.open_settings_dialog()
     finally:
         soft_dialog.SoftDialog.exec = original
+
+    # The dialog that explains unlocking an encrypted, stored backup.
+    def grab_unlock(dlg) -> int:  # noqa: ANN001 - replaces SoftDialog.exec
+        dlg.show()
+        save(dlg, "unlock-dialog.png")
+        dlg.done(0)
+        return 0
+
+    class _Profile:  # an encrypted 48 GB backup made with Store
+        packed_size = 48 * 1024**3
+        header_encrypted = True
+
+    soft_dialog.SoftDialog.exec = grab_unlock
+    try:
+        window._archive_label = "backup_2026.7z"
+        window._confirm_unlock(_Profile(), 212 * 1024**3)
+    finally:
+        soft_dialog.SoftDialog.exec = original
     window.close()
+
+    # The README shows these side by side: give each pair the same shape, so
+    # the two stand level (the shorter one gets a transparent bottom).
+    for pair in (
+        ("find-in-file.png", "extract-dialog.png"),
+        ("unlock-dialog.png", "settings-temp-files.png"),
+    ):
+        match_shapes(*pair)
+
+
+def match_shapes(first: str, second: str) -> None:
+    images = {name: Image.open(OUT / name).convert("RGBA") for name in (first, second)}
+    aspect = max(image.height / image.width for image in images.values())
+    for name, image in images.items():
+        height = round(image.width * aspect)
+        if height > image.height:
+            padded = Image.new("RGBA", (image.width, height), (0, 0, 0, 0))
+            padded.paste(image, (0, 0))
+            padded.save(OUT / name, optimize=True)
 
 
 if __name__ == "__main__":

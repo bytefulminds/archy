@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum, auto
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
     from archy.core.extraction import ExtractResult
@@ -77,6 +77,19 @@ _STREAM_CHUNK = 1024 * 1024
 
 class _StreamCancelled(Exception):
     """Raised inside a stream sink to stop it (the request went stale)."""
+
+
+class SeekableReader(Protocol):
+    """What ``ArchiveBackend.open_stream`` returns: a read-only file."""
+
+    @property
+    def size(self) -> int: ...
+
+    def seek(self, offset: int, whence: int = 0) -> int: ...
+
+    def read(self, size: int = -1) -> bytes: ...
+
+    def close(self) -> None: ...
 
 
 class EntryType(Enum):
@@ -273,7 +286,7 @@ class ArchiveBackend(ABC):
         buffered = self._from_folder(entry.path, max_bytes)
         if buffered is not None:
             return buffered
-        guard = contextlib.nullcontext() if self._parallel_reads else self._io_lock
+        guard = contextlib.nullcontext() if self._reads_freely(entry) else self._io_lock
         with guard:  # serial backends never decode on two threads at once
             # A folder prefetch may have delivered this entry while we waited
             # for the lock; serve that instead of decoding it a second time.
@@ -349,12 +362,37 @@ class ArchiveBackend(ABC):
                     while chunk := reader.read(_STREAM_CHUNK):
                         sink(chunk)
                 return True
-            guard = contextlib.nullcontext() if self._parallel_reads else self._io_lock
+            guard = contextlib.nullcontext() if self._reads_freely(entry) else self._io_lock
             with guard:
                 self._stream_uncached(entry, sink)
             return True
         except _StreamCancelled:
             return False
+
+    def _reads_freely(self, entry: ArchiveEntry) -> bool:
+        """True when reading ``entry`` needs no turn on the shared decoder
+        (``_io_lock``): it can run next to a folder pass or another read."""
+        return self._parallel_reads
+
+    def can_stream(self, entry: ArchiveEntry) -> bool:
+        """Whether ``open_stream`` works for this entry (no I/O)."""
+        return False
+
+    def mixed_storage(self) -> tuple[int, int] | None:
+        """(stored files, compressed files) when the archive mixes the two in
+        a way that matters: a 7z backup made with Store to which files were
+        later added with compression (7-Zip's drag and drop does that). The
+        compressed part opens far slower. None otherwise (no I/O; known once
+        the archive has been listed)."""
+        return None
+
+    def open_stream(self, entry: ArchiveEntry) -> SeekableReader | None:
+        """A seekable, read-only file over the entry's content, read from the
+        archive on demand, or None when the format cannot do that cheaply.
+
+        Lets a video play (or a PDF open) while it is being read, instead of
+        loading it whole into memory first. Close it when done."""
+        return None
 
     def _stream_uncached(self, entry: ArchiveEntry, sink: Callable[[bytes], None]) -> None:
         """Feed the entry to ``sink`` in chunks. Default: one read (backends

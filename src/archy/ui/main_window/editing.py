@@ -373,5 +373,6 @@ class EditingMixin:
             else:
                 break
         self._refresh_folder()
+        self._update_archive_notice()  # a save can change how the archive is stored
         if select_path is not None:
             self._select_path(select_path)

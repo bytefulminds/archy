@@ -187,6 +187,14 @@
     "preview.too_big": "{name}\n\n{size} - te groot voor het geheugen{hint}",
     "preview.binary": "{name}\n\nBestand lijkt binair - geen tekstpreview",
     "preview.text_partial": "\n\n[... alleen-lezen preview, bestand te groot om te bewerken ...]",
+    "preview.rendered": "Weergave",
+    "preview.source": "Bron",
+    "preview.table": "Tabel",
+    "find.placeholder": "Zoeken in dit bestand",
+    "find.previous": "Vorige (Shift+Enter)",
+    "find.next": "Volgende (Enter)",
+    "find.close": "Sluiten (Esc)",
+    "find.none": "Geen resultaten",
     "status.spilling": "Versleuteld naar tijdelijke map... {percent}%",
     "status.shown_from_temp": "Getoond vanuit versleuteld tijdelijk bestand",
     "lock.read_only": "Alleen lezen",
@@ -331,6 +339,36 @@
     "preview.no_disk_space": "Te weinig schijfruimte voor een tijdelijk bestand",
     "error.needs_libarchive": "Dit formaat ({format}) vereist libarchive, dat op dit systeem niet beschikbaar is. zip, 7z en tar (.gz/.bz2/.xz) werken wel.",
     "error.unknown_format": "onbekend",
-    "error.not_in_archive": "niet gevonden in het archief"
+    "error.not_in_archive": "niet gevonden in het archief",
+    "details.dimensions": "Afmetingen: {value}",
+    "details.camera": "Camera: {value}",
+    "details.lens": "Objectief: {value}",
+    "details.exposure": "Belichting: {value}",
+    "details.taken": "Gemaakt: {value}",
+    "details.lines": "Regels: {value}",
+    "details.line_count": {
+      "one": "{count} regel",
+      "other": "{count} regels"
+    },
+    "details.encoding": "Codering: {value}",
+    "details.pages": "Pagina's: {value}",
+    "details.page_count": {
+      "one": "{count} pagina",
+      "other": "{count} pagina's"
+    },
+    "details.title": "Titel: {value}",
+    "details.author": "Auteur: {value}",
+    "details.duration": "Duur: {value}",
+    "details.resolution": "Resolutie: {value}",
+    "details.frame_rate": "Beeldsnelheid: {value}",
+    "details.codec": "Codec: {value}",
+    "details.contents": "Inhoud: {value}",
+    "details.modified": "Gewijzigd {value}",
+    "notice.hide": "Verbergen",
+    "notice.mixed_title": "Gemengd archief gedetecteerd",
+    "notice.mixed_text": {
+      "one": "{count} van de {total} bestanden zit in een gecomprimeerd blok en opent daardoor trager dan de rest. Maak het archief opnieuw met Opslaan (geen compressie) en elk bestand opent snel.",
+      "other": "{count} van de {total} bestanden zitten in gecomprimeerde blokken en openen daardoor trager dan de rest. Maak het archief opnieuw met Opslaan (geen compressie) en elk bestand opent snel."
+    }
   }
 }

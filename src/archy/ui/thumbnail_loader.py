@@ -1,13 +1,12 @@
 from __future__ import annotations
 
+import contextlib
 import io
 import threading
 from collections import OrderedDict
 from collections.abc import Callable
 
 from PySide6.QtCore import (
-    QBuffer,
-    QByteArray,
     QObject,
     QRunnable,
     QSize,
@@ -17,11 +16,12 @@ from PySide6.QtCore import (
     QTimer,
     Signal,
 )
-from PySide6.QtGui import QImage, QImageReader, QPixmap
+from PySide6.QtGui import QImage, QPixmap, QTransform
 
 from archy.core import memory
 from archy.core.backend import ArchiveBackend, ArchiveEntry
 from archy.core.secure_temp import disk_reserve
+from archy.services.image_decode import decode_image
 from archy.services.preview import PreviewKind, kind_for_name
 
 # Thumbnail generation for the grid views. Images are decoded straight to
@@ -89,31 +89,9 @@ def _video_thumb_solid_cap() -> int:
 
 
 def _decode_image_thumb(data: bytes) -> QImage:
-    """Decode image bytes straight to thumbnail size.
-
-    Uses QImageReader with a scaled size rather than QImage.loadFromData +
-    scaled(): the JPEG decoder then skips most of the full-resolution work
-    (about 3x faster on a 12 MP photo), and - crucially - PySide releases the
-    Python GIL during QImageReader.read() but NOT during loadFromData(). With
-    loadFromData every thumbnail froze the GUI thread for the whole decode
-    (~180 ms per photo), which is what made scrolling the grid stutter.
-    """
-    buffer = QBuffer()
-    buffer.setData(QByteArray(data))
-    buffer.open(QBuffer.OpenModeFlag.ReadOnly)
-    reader = QImageReader(buffer)
-    box = QSize(_THUMB_SIZE, _THUMB_SIZE)
-    size = reader.size()  # header only
-    if size.isValid() and (size.width() > box.width() or size.height() > box.height()):
-        reader.setScaledSize(size.scaled(box, Qt.AspectRatioMode.KeepAspectRatio))
-        return reader.read()
-    image = reader.read()
-    if image.isNull() or (image.width() <= box.width() and image.height() <= box.height()):
-        return image
-    # Format without a cheap header size: scale the (small) result here.
-    return image.scaled(
-        box, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation
-    )
+    """Decode image bytes straight to thumbnail size, upright (see
+    services/image_decode.py: scaled JPEG decoding, GIL released, HEIC)."""
+    return decode_image(data, QSize(_THUMB_SIZE, _THUMB_SIZE))
 
 
 def _decode_video_frame(data: object) -> QImage | None:
@@ -140,11 +118,37 @@ def _decode_video_frame(data: object) -> QImage | None:
             rgb = last.to_rgb()
             plane = rgb.planes[0]
             # line_size is the (possibly padded) row stride; QImage honours it.
-            return QImage(
+            image = QImage(
                 bytes(plane), rgb.width, rgb.height, plane.line_size, QImage.Format.Format_RGB888
             ).copy()
+            return _upright(image, _video_rotation(last, stream))
     except Exception:  # noqa: BLE001 - undecodable prefix just gets no thumbnail
         return None
+
+
+def _video_rotation(frame: object, stream: object) -> int:
+    """How far the frame must turn counter-clockwise to stand upright, in
+    degrees. Phones film portrait clips as landscape frames with a "display
+    matrix" saying how to turn them (players apply it; a decoded frame does
+    not). PyAV reports it as ``frame.rotation`` (counter-clockwise, like
+    ffmpeg); older PyAV only has the stream's ``rotate`` tag (clockwise)."""
+    rotation = getattr(frame, "rotation", None)
+    if rotation is None:
+        try:
+            rotation = -int(float(stream.metadata.get("rotate", 0)))  # type: ignore[attr-defined]
+        except (AttributeError, TypeError, ValueError):
+            rotation = 0
+    try:
+        return round(float(rotation) / 90) * 90 % 360
+    except (TypeError, ValueError):
+        return 0
+
+
+def _upright(image: QImage, rotation: int) -> QImage:
+    if not rotation or image.isNull():
+        return image
+    # QTransform.rotate turns clockwise on screen (y points down).
+    return image.transformed(QTransform().rotate(-rotation))
 
 
 def _cache_budget() -> int:
@@ -399,7 +403,11 @@ class ThumbnailLoader(QObject):
             # free. On a solid 7z an unbuffered read decodes the block, so we do
             # it only for videos up to a size cap, per visible tile. Bigger
             # videos stay an icon.
-            if self._backend.fast_seek or self._backend.has_buffered(entry.path):
+            if (
+                self._backend.fast_seek
+                or self._backend.can_stream(entry)
+                or self._backend.has_buffered(entry.path)
+            ):
                 return True
             if self._backend.spill_mode != "memory":
                 # Via the encrypted temp store: only the time it takes bounds it.
@@ -531,6 +539,26 @@ class _ThumbTask(QRunnable):
         backend = self._backend
         if backend is None:
             return None
+        # A stored 7z reads at any offset: PyAV reads just the parts it needs
+        # (also an MP4 whose index sits at the end).
+        if backend.can_stream(self._entry):
+            # One video at a time: probing several at once only competes with
+            # the photos and the preview for the disk and the CPU.
+            with _solid_video_gate:
+                frame = None
+                with contextlib.suppress(Exception):
+                    stream = backend.open_stream(self._entry)
+                    try:
+                        frame = _decode_video_frame(stream)
+                    finally:
+                        stream.close()
+            if frame is None or frame.isNull():
+                return None
+            return frame.scaled(
+                QSize(_THUMB_SIZE, _THUMB_SIZE),
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            )
         # Read the bytes as cheaply as possible: a bounded prefix on a seek-
         # friendly backend, or the full (already in-memory) bytes when buffered.
         if backend.fast_seek:

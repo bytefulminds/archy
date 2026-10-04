@@ -7,7 +7,7 @@ from PySide6.QtCore import (
 
 from archy.core.tree import TreeNode
 from archy.i18n import tr
-from archy.services.formatting import format_size
+from archy.services.formatting import format_modified, format_size
 
 
 class SelectionMixin:
@@ -60,14 +60,19 @@ class SelectionMixin:
             return
         if node.is_dir:
             self._info_button.setEnabled(False)
-            self._set_preview_title(f"{node.name}", tr("kind.dir"))
+            self._set_preview_title(node.name, tr("count.items", count=len(node.children)))
             self._set_footer(node)
             self._set_status(tr("status.folder_hint", name=node.name))
             self._show_placeholder(tr("preview.folder_hint"))
         else:
             self._info_button.setEnabled(True)
-            ext = node.name.rsplit(".", 1)[-1].upper() if "." in node.name else ""
-            sub = f"{ext} · {format_size(node.size)}" if ext else format_size(node.size)
+            # Type and size are in the footer; until the preview knows more
+            # (pixels, pages, length), the line under the name shows the date.
+            sub = (
+                tr("details.modified", value=format_modified(node.modified))
+                if node.modified is not None
+                else ""
+            )
             self._set_preview_title(node.name, sub)
             self._set_footer(node)
             self._set_status(f"{node.path} - {format_size(node.size)}")

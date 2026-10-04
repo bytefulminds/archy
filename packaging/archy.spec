@@ -15,8 +15,8 @@
 #   - the native libarchive shared library, when it can be located, so the app
 #     reads the broad set of formats without a system install (see native.py)
 #   - py7zr's submodules (some are imported lazily and PyInstaller misses them)
-# PySide6 (incl. the Qt multimedia + PDF plugins used by the preview) is handled
-# by PyInstaller's bundled PySide6 hooks.
+# PySide6 (incl. the Qt multimedia + PDF plugins and QtWebEngine used by the
+# preview) is handled by PyInstaller's bundled PySide6 hooks.
 
 import ctypes.util
 import os
@@ -96,6 +96,13 @@ binaries += collect_dynamic_libs("py7zr")
 # runtime deps (pyzipper, charset_normalizer, psutil, libarchive) are imported
 # normally and found by the analysis.
 hiddenimports = collect_submodules("py7zr")
+# Imported lazily (only when Qt cannot read a HEIC/AVIF photo), so name them.
+hiddenimports += ["pi_heif", "PIL.Image", "PIL.ImageOps"]
+# QtWebEngine renders HTML previews and is imported lazily (services/web_view.py);
+# naming it lets PyInstaller's PySide6 hooks bundle QtWebEngineProcess and its
+# resources.
+hiddenimports += ["PySide6.QtWebEngineCore", "PySide6.QtWebEngineWidgets"]
+binaries += collect_dynamic_libs("pi_heif")
 
 a = Analysis(
     [ENTRY],

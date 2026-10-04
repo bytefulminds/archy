@@ -78,7 +78,7 @@ class ActionsMixin:
 
         self._find_action = QAction(tr("action.find_folder"), self)
         self._find_action.setShortcut(QKeySequence.StandardKey.Find)
-        self._find_action.triggered.connect(lambda: self._focus_search("folder"))
+        self._find_action.triggered.connect(self._find_in_preview_or_folder)
         self.addAction(self._find_action)
 
         self._find_archive_action = QAction(tr("action.find_archive"), self)

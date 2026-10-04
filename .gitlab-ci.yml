@@ -10,12 +10,14 @@
 #
 # The test job installs the native libarchive C library (libarchive13;
 # libarchive-c only ships the Python binding, and the LibArchiveBackend tests
-# need the native lib) plus the minimal Qt runtime libs (libgl1, libegl1) so the
-# offscreen UI smoke test can import PySide6. That test skips itself if the GUI
-# stack still cannot load, so CI stays green regardless.
+# need the native lib) plus the system libraries Qt needs to run offscreen
+# ($QT_RUNTIME_LIBS: OpenGL/EGL, fontconfig, xkbcommon, D-Bus, audio, and NSS
+# and the X extensions QtWebEngine links against), so the UI tests run in CI
+# instead of skipping. The image is pinned to Debian bookworm so those package
+# names stay valid.
 
 default:
-  image: python:3.12-slim
+  image: python:3.12-slim-bookworm
 
 stages:
   - lint
@@ -24,6 +26,11 @@ stages:
 
 variables:
   PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+  QT_RUNTIME_LIBS: >-
+    libgl1 libegl1 libgbm1 libdrm2 libfontconfig1 libfreetype6 libxkbcommon0
+    libglib2.0-0 libdbus-1-3 libasound2 libpulse0 libgssapi-krb5-2
+    libnss3 libnspr4 libx11-6 libx11-xcb1 libxcb1 libxext6 libxfixes3 libxrender1
+    libxcomposite1 libxdamage1 libxrandr2 libxtst6 libxkbfile1
 
 cache:
   key: "$CI_JOB_NAME"
@@ -40,7 +47,7 @@ lint:
 test:
   stage: test
   script:
-    - apt-get update && apt-get install -y --no-install-recommends libarchive13 libgl1 libegl1
+    - apt-get update && apt-get install -y --no-install-recommends libarchive13 $QT_RUNTIME_LIBS
     - pip install -e ".[dev]"
     - QT_QPA_PLATFORM=offscreen pytest
 
@@ -53,10 +60,11 @@ build:linux-appimage:
     - when: manual               # otherwise: run it by hand from the UI
       allow_failure: true
   script:
-    # Runtime libs the bundled app needs, plus libxcb-cursor0 (bundled into the
+    # Runtime libs the bundled app needs (PyInstaller bundles what Qt links
+    # against from the build host), plus libxcb-cursor0 (bundled into the
     # AppImage for the Qt xcb platform plugin) and curl (fetches appimagetool).
     - apt-get update && apt-get install -y --no-install-recommends
-        libarchive13 libgl1 libegl1 libxcb-cursor0 curl file desktop-file-utils
+        libarchive13 $QT_RUNTIME_LIBS libxcb-cursor0 curl file desktop-file-utils
     - pip install -e ".[dev]" pyinstaller
     - chmod +x packaging/build_appimage.sh
     - ./packaging/build_appimage.sh

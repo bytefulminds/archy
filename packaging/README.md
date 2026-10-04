@@ -56,7 +56,7 @@ desktop entry), and `src/archy/resources/icons/archy.png` (the in-app header
 mark). All are generated from `docs/Archy_square.png`; regenerate them if the
 source logo changes.
 
-## Still to do for a release (v0.1.0)
+## Still to do for the installers
 
 - **Windows:** builds without any native lib (zip/7z/tar work). Optional:
   `libarchive.dll` for rar/exotic, and code signing to avoid SmartScreen
@@ -65,4 +65,3 @@ source logo changes.
   Gatekeeper right-click-Open step. Consider a universal2 build if needed.
 - **Runners:** connect Windows + macOS GitLab runners to build all three in CI.
 - **Fonts in the wheel:** already handled (`pyproject.toml` `artifacts`).
-- Bump `__version__` / installer versions to `0.1.0` and tag.

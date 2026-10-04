@@ -50,8 +50,29 @@ _TEXT_EXT = {
     ".ps1",
     ".sql",
     ".csv",
+    ".tsv",
+    ".htm",
+    ".xhtml",
+    ".markdown",
+    ".jsonl",
+    ".geojson",
 }
-_IMAGE_EXT = {".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".tiff", ".ico", ".svg"}
+_IMAGE_EXT = {
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".gif",
+    ".bmp",
+    ".webp",
+    ".tif",
+    ".tiff",
+    ".ico",
+    ".svg",
+    ".heic",  # iPhone photos (HEIF); decoded by Qt on macOS, pillow-heif elsewhere
+    ".heif",
+    ".hif",
+    ".avif",
+}
 _PDF_EXT = {".pdf"}
 _VIDEO_EXT = {".mp4", ".mkv", ".mov", ".avi", ".webm", ".m4v", ".wmv", ".flv"}
 

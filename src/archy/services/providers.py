@@ -3,8 +3,8 @@ from __future__ import annotations
 import contextlib
 from pathlib import Path
 
-from PySide6.QtCore import QIODevice, Qt
-from PySide6.QtGui import QFontDatabase, QImage
+from PySide6.QtCore import QIODevice, QObject, Qt, Signal
+from PySide6.QtGui import QFontDatabase
 from PySide6.QtWidgets import (
     QLabel,
     QPlainTextEdit,
@@ -14,6 +14,8 @@ from PySide6.QtWidgets import (
 )
 
 from archy.i18n import tr
+from archy.services import file_details
+from archy.services.image_decode import decode_image
 from archy.services.preview import PreviewKind, kind_for_name
 from archy.services.text_decode import decode_text, looks_binary
 from archy.ui import theme
@@ -48,6 +50,34 @@ class _VideoContainer(QWidget):
         super().wheelEvent(event)
 
 
+class DetailsSource(QObject):
+    """What a preview found out about its file (see services/file_details.py),
+    for the line under the file name. ``changed`` fires when it is known later,
+    such as a video's length once the player has opened it."""
+
+    changed = Signal()
+
+    def __init__(self, parent: QObject | None = None) -> None:
+        super().__init__(parent)
+        self.items: file_details.Details = []
+
+    def set(self, items: file_details.Details) -> None:
+        if items != self.items:
+            self.items = list(items)
+            self.changed.emit()
+
+
+def details_of(widget: QWidget, items: file_details.Details | None = None) -> DetailsSource:
+    """The widget's DetailsSource (created on first use), optionally filled."""
+    source = getattr(widget, "_zx_details", None)
+    if source is None:
+        source = DetailsSource(widget)
+        widget._zx_details = source  # type: ignore[attr-defined]
+    if items is not None:
+        source.set(items)
+    return source
+
+
 def _format_ms(ms: int) -> str:
     if ms <= 0:
         return "0:00"
@@ -71,18 +101,42 @@ def _message(text: str) -> QWidget:
 
 
 class _ClickSlider(QSlider):
-    """A slider that jumps to the clicked position (for video seeking)."""
+    """The video seek bar: a click jumps there, and the handle can be dragged
+    (from wherever it was grabbed). Emits sliderMoved while dragging and
+    sliderReleased at the end, like a normal QSlider."""
+
+    def _value_at(self, x: float) -> int:
+        span = self.maximum() - self.minimum()
+        frac = min(1.0, max(0.0, x / max(1, self.width())))
+        return self.minimum() + round(span * frac)
 
     def mousePressEvent(self, event) -> None:  # noqa: ANN001, N802 - Qt override
         if event.button() == Qt.MouseButton.LeftButton and self.maximum() > self.minimum():
-            width = max(1, self.width())
-            frac = min(1.0, max(0.0, event.position().x() / width))
-            value = self.minimum() + round((self.maximum() - self.minimum()) * frac)
-            self.setValue(int(value))
-            self.sliderMoved.emit(int(value))
+            self.setSliderDown(True)  # also stops position updates fighting the drag
+            value = self._value_at(event.position().x())
+            self.setValue(value)
+            self.sliderMoved.emit(value)
             event.accept()
             return
         super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event) -> None:  # noqa: ANN001, N802 - Qt override
+        if self.isSliderDown():
+            value = self._value_at(event.position().x())
+            if value != self.value():
+                self.setValue(value)
+                self.sliderMoved.emit(value)
+            event.accept()
+            return
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event) -> None:  # noqa: ANN001, N802 - Qt override
+        if self.isSliderDown() and event.button() == Qt.MouseButton.LeftButton:
+            self.setValue(self._value_at(event.position().x()))
+            self.setSliderDown(False)  # emits sliderReleased
+            event.accept()
+            return
+        super().mouseReleaseEvent(event)
 
 
 # Emoji and symbol fonts per platform, tried after the monospace font for any
@@ -128,24 +182,36 @@ def make_text_edit(text: str, *, editable: bool) -> QPlainTextEdit:
     return view
 
 
+def make_text_preview(
+    name: str,
+    text: str,
+    *,
+    editable: bool,
+    resources=None,  # noqa: ANN001
+) -> tuple[QWidget, QPlainTextEdit]:
+    """The text preview for ``name``: syntax colours by file type, for
+    HTML/Markdown a rendered page and for CSV a table, each with a switch to
+    the source, and Ctrl+F to find in the file (see services/text_view.py).
+    ``resources`` reads stylesheets/images next to the file in the archive.
+    Returns (widget to show, the text field)."""
+    from archy.services.text_view import make_text_view
+
+    return make_text_view(
+        name, text, editable=editable, make_edit=make_text_edit, resources=resources
+    )
+
+
 def _build_text(name: str, data: bytes) -> QWidget:
     if looks_binary(data):
         return _message(tr("preview.binary", name=name))
-
     decoded = decode_text(data)
-    # Plain notepad-style field: uses the application palette, so it stays
-    # readable in both light and dark themes. (Syntax highlighting can come
-    # back later as a theme-aware option.)
-    view = QPlainTextEdit()
-    view.setReadOnly(True)
-    view.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
-    view.setFont(text_font())
-    view.setPlainText(decoded.text)
-    return view
+    widget, _edit = make_text_preview(name, decoded.text, editable=False)
+    details_of(widget, file_details.text_details(decoded.text, decoded.encoding))
+    return widget
 
 
 def _build_image(name: str, data: bytes) -> QWidget:
-    image = QImage.fromData(data)
+    image = decode_image(data)  # upright; HEIC/AVIF too
     if image.isNull():
         return _message(tr("preview.image_failed", name=name))
 
@@ -164,6 +230,7 @@ def _build_image(name: str, data: bytes) -> QWidget:
     # Expose the viewer + rotate so the preview panel's own chrome can drive it.
     container._zx_cleanup = _cleanup  # type: ignore[attr-defined]
     container._zx_image_view = viewer  # type: ignore[attr-defined]
+    details_of(container, file_details.image_details(data, image.width(), image.height()))
 
     layout.addWidget(viewer, stretch=1)
     return container
@@ -216,6 +283,31 @@ def _build_pdf(name: str, source: bytes | Path | QIODevice) -> QWidget:
 
     container._pdf_document = document  # type: ignore[attr-defined]
     container._zx_cleanup = _cleanup  # type: ignore[attr-defined]
+
+    details = details_of(container)
+
+    def _pdf_details() -> None:
+        try:
+            ready = document.status() == QPdfDocument.Status.Ready
+        except RuntimeError:  # the document is being torn down
+            return
+        if not ready:
+            return
+        items: file_details.Details = []
+        pages = document.pageCount()
+        if pages > 0:
+            items.append(("details.pages", file_details.count("details.page_count", pages)))
+        for key, field in (
+            ("details.title", QPdfDocument.MetaDataField.Title),
+            ("details.author", QPdfDocument.MetaDataField.Author),
+        ):
+            value = str(document.metaData(field) or "").strip()
+            if value:
+                items.append((key, value))
+        details.set(items)
+
+    document.statusChanged.connect(_pdf_details)
+    _pdf_details()  # a buffer loads at once
 
     layout.addWidget(view)
     return container
@@ -277,7 +369,7 @@ def _dispose_player_async(player: object, audio: object, buffer: object) -> None
 
 def _build_video(name: str, source: bytes | Path | QIODevice) -> QWidget:
     try:
-        from PySide6.QtCore import QBuffer, QByteArray, QMetaObject, QSize, Qt, QUrl
+        from PySide6.QtCore import QBuffer, QByteArray, QMetaObject, QSize, Qt, QTimer, QUrl
         from PySide6.QtMultimedia import QAudioOutput, QMediaMetaData, QMediaPlayer
         from PySide6.QtMultimediaWidgets import QVideoWidget
         from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QToolButton
@@ -285,6 +377,7 @@ def _build_video(name: str, source: bytes | Path | QIODevice) -> QWidget:
         return _message(tr("preview.no_video", name=name))
 
     _SKIP_MS = 10_000
+    _SEEK_INTERVAL_MS = 80
 
     container = _VideoContainer()
     layout = QVBoxLayout(container)
@@ -368,14 +461,57 @@ def _build_video(name: str, source: bytes | Path | QIODevice) -> QWidget:
         target = max(0, min(player.position() + direction * step, player.duration()))
         player.setPosition(target)
 
+    details = details_of(container)
+
+    def _video_details() -> None:
+        items: file_details.Details = []
+        if player.duration() > 0:
+            items.append(("details.duration", file_details.duration(player.duration())))
+        meta = player.metaData()
+        with contextlib.suppress(Exception):
+            size = meta.value(QMediaMetaData.Key.Resolution)
+            if size is not None and size.width() > 0:
+                items.append(
+                    ("details.resolution", file_details.dimensions(size.width(), size.height()))
+                )
+        with contextlib.suppress(Exception):
+            rate = float(meta.value(QMediaMetaData.Key.VideoFrameRate) or 0)
+            if rate > 0:
+                items.append(("details.frame_rate", f"{rate:.3g} fps"))
+        with contextlib.suppress(Exception):
+            from PySide6.QtMultimedia import QMediaFormat
+
+            codec = meta.value(QMediaMetaData.Key.VideoCodec)
+            if codec is not None and codec != QMediaFormat.VideoCodec.Unspecified:
+                items.append(("details.codec", QMediaFormat.videoCodecName(codec)))
+        details.set(items)
+
     def on_duration(duration: int) -> None:
         position.setRange(0, duration)
         _sync_time()
+        _video_details()
 
     def on_position(pos: int) -> None:
         if not position.isSliderDown():
             position.setValue(pos)
-        _sync_time()
+            _sync_time()
+
+    # Dragging: the time follows the handle at once; the player seeks to it at
+    # most every _SEEK_INTERVAL_MS (each seek decodes from a keyframe, so one
+    # per mouse move only queues work), and exactly where the handle is let go.
+    seek_timer = QTimer(container)
+    seek_timer.setSingleShot(True)
+    seek_timer.setInterval(_SEEK_INTERVAL_MS)
+    seek_timer.timeout.connect(lambda: player.setPosition(position.value()))
+
+    def on_moved(value: int) -> None:
+        time_label.setText(f"{_format_ms(value)} / {_format_ms(player.duration())}")
+        if not seek_timer.isActive():
+            seek_timer.start()
+
+    def on_released() -> None:
+        seek_timer.stop()
+        player.setPosition(position.value())
 
     def on_state(state: object) -> None:
         playing = state == QMediaPlayer.PlaybackState.PlayingState
@@ -384,10 +520,12 @@ def _build_video(name: str, source: bytes | Path | QIODevice) -> QWidget:
     play_button.clicked.connect(toggle)
     back_button.clicked.connect(lambda: skip(-_SKIP_MS))
     fwd_button.clicked.connect(lambda: skip(_SKIP_MS))
-    position.sliderMoved.connect(player.setPosition)
+    position.sliderMoved.connect(on_moved)
+    position.sliderReleased.connect(on_released)
     player.durationChanged.connect(on_duration)
     player.positionChanged.connect(on_position)
     player.playbackStateChanged.connect(on_state)
+    player.metaDataChanged.connect(_video_details)
 
     control_bar = QFrame(container)
     control_bar.setObjectName("videoControls")
@@ -411,10 +549,12 @@ def _build_video(name: str, source: bytes | Path | QIODevice) -> QWidget:
         # post the teardown (queued pause/stop + deleteLater) so Qt runs it from
         # its C++ event loop with the GIL released - no Python call ever waits
         # on the renderer, so nothing can deadlock. See _dispose_player_async.
+        seek_timer.stop()
         with contextlib.suppress(Exception):
             player.positionChanged.disconnect()
             player.durationChanged.disconnect()
             player.playbackStateChanged.disconnect()
+            player.metaDataChanged.disconnect()
         with contextlib.suppress(Exception):
             player.setVideoOutput(None)  # safe; frees the doomed QVideoWidget
         _dispose_player_async(player, audio, buffer)

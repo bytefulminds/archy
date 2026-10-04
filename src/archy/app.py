@@ -136,6 +136,11 @@ def run() -> int:
     QLoggingCategory.setFilterRules("qt.multimedia.ffmpeg=false")
 
     _set_windows_app_id()
+    # Web pages render through QtWebEngine when it is there; its URL scheme
+    # must be registered before the QApplication exists.
+    from archy.services import web_view
+
+    web_view.prepare()
     app = QApplication(sys.argv)
     app.setApplicationName("Archy")
     app.setOrganizationName("Archy")

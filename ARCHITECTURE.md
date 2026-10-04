@@ -53,6 +53,8 @@ yourself wanting Qt in `core/`, the logic belongs in `services/` or `ui/`.
   - `zip_backend.py` (`ZipBackend`) - read + write for zip (stdlib `zipfile`;
     `pyzipper` for AES).
   - `sevenzip_backend.py` (`SevenZipBackend`) - read + write for 7z (`py7zr`).
+  - `sevenzip_direct.py` - direct reads for 7z files made with Store (no
+    compression, encrypted or not); see "Stored 7z: direct reads" below.
   - `sevenzip_writer.py` - the 7z save: a streaming rewrite next to the
     original, checked before it replaces the original (see "Saving a 7z").
   - `tar_backend.py` (`TarBackend`) - read-only tar/tar.gz/tar.bz2/tar.xz via
@@ -93,6 +95,42 @@ yourself wanting Qt in `core/`, the logic belongs in `services/` or `ui/`.
   (`build_preview_widget_from_path`, used by the memory-pressure fallback). This
   one file does import Qt - it is the bridge into the UI.
 - `text_decode.py` - decode bytes to text with charset fallback.
+- `text_view.py` - the text preview: syntax colours (JSON, YAML, TOML,
+  HTML/XML, Markdown; VS Code's dark colours) and rainbow CSV through
+  `QSyntaxHighlighter` (skipped above `HIGHLIGHT_LIMIT` characters), and for
+  HTML/Markdown a rendered page (`OfflineBrowser`: loads stylesheets and
+  images only from the same archive through a resource reader, follows no
+  links) and for CSV a table (`CsvModel`), each with a Rendered/Source switch,
+  plus a `FindBar` for Ctrl+F in the file (`TextPreview.open_find`; the
+  window routes Ctrl+F there when the focus is inside the preview). Linked
+  stylesheets are inlined first: Qt only loads a `<link>` that says
+  `type="text/css"`. HTML goes to `web_view.py` instead when QtWebEngine is
+  available.
+- `web_view.py` - HTML through Chromium (QtWebEngine) for full CSS. One
+  shared off-the-record profile (memory cache, no persistent cookies, so
+  nothing of the page lands on disk); the page and its resources come from the
+  private `archy-page://<token>/<path>` scheme, served from memory by a
+  `QWebEngineUrlSchemeHandler` through the same archive-only resource reader;
+  a `QWebEngineUrlRequestInterceptor` blocks every other scheme; JavaScript,
+  plugins, the PDF viewer and WebGL are off, link navigation and new windows
+  are refused, downloads cancelled. `prepare()` must run before the
+  QApplication exists (it registers the scheme and shares OpenGL contexts;
+  `app.run()` and the screenshot script call it); without it `available()` is
+  False and `text_view` keeps using `OfflineBrowser`. `WebFindTarget` makes the
+  `FindBar` work on it (Chromium searches asynchronously and reports the match
+  count back). Set `ARCHY_NO_WEBENGINE=1` to force the fallback. The GPU
+  driver may keep a shader cache (compiled shaders, no file content) as it
+  does for every OpenGL app.
+- `file_details.py` - the line under the file name in the preview: pixels,
+  camera, lens, exposure and date taken (EXIF via Pillow / pi-heif), video
+  length and resolution, PDF pages/title/author, text lines and encoding. Each
+  detail is (i18n label key, value). Providers attach a `DetailsSource`
+  (`providers.details_of`) to their widget; it can fill in later (a video's
+  length once the player has opened it) and the preview pane follows it.
+- `image_decode.py` - decode image bytes for the preview and thumbnails:
+  Qt's `QImageReader` first (orientation applied, scaled JPEG decoding, GIL
+  released), then pi-heif (decode-only pillow-heif) / Pillow for HEIC and AVIF where Qt has no
+  plugin (Qt reads HEIC only on macOS).
 - `temp_files.py` - `TempManager`: temp-files mode, the per-session encrypted
   store and its cleanup.
 - `encrypted_device.py` - `EncryptedBlobDevice`, a decrypting QIODevice so Qt
@@ -140,7 +178,38 @@ All of this lives in `core/backend.py`:
   away instead of serving stale bytes.
 - **`fast_seek`** - true for zip (cheap random access), false for 7z/libarchive
   (a read may decode a big block or must stream). The UI uses this to decide
-  whether a small read may run on the UI thread or must go to a worker.
+  whether a small read may run on the UI thread or must go to a worker, and
+  whether thumbnails are read per file (zip) or made by the folder pass. A 7z
+  made with Store keeps the folder pass on purpose: one thread reading the
+  folder front to back makes the thumbnails faster than many threads reading
+  files at once (measured), and a click reads directly anyway (see below).
+- **`open_stream(entry)` / `can_stream(entry)`** - a seekable reader over one
+  entry, read from the archive on demand, where the format allows it (stored
+  7z; None elsewhere). Videos and PDFs then play/open at once through a
+  `ReaderDevice` (`services/encrypted_device.py`) instead of being loaded whole
+  first, and video thumbnails read only the parts PyAV needs (one at a time).
+- **`mixed_storage()`** - (stored files, compressed files) when an archive
+  mixes the two (a Store 7z with files later added compressed, typically by
+  7-Zip's drag and drop); None otherwise. No I/O: the 7z backend counts it
+  while building the `StoreIndex`. The window shows a notice above the file
+  list (`_update_archive_notice`), never a dialog.
+
+### Stored 7z: direct reads (`core/backends/sevenzip_direct.py`)
+
+py7zr reads an entry by walking the whole index (every file, for every read)
+and decoding its block from the start. A block made with Store needs neither:
+its bytes sit in the archive as they are, at an offset the index gives, and
+7-Zip's AES-256 is CBC, which decrypts from any 16-byte boundary given the 16
+encrypted bytes before it. `StoreIndex.build()` turns py7zr's parsed header into
+a span per file (block start, offset in the block, size, CRC, AES properties)
+for every block made of Copy/7zAES coders only; `read_whole` (CRC-checked),
+`read_span` (any range) and `SpanStream` (a seekable file) read from there with
+their own file handle. So these reads skip `_io_lock` (`_reads_freely`): a
+click never waits for a folder pass. The folder pass itself reads stored files
+the same way, in archive order. Decryption works in place in one buffer: every
+extra copy holds the GIL, which the UI thread needs. A partial read or a stream has no CRC to
+catch a wrong password, so the password is first proved once on the smallest
+encrypted file. Compressed blocks keep going through py7zr.
 
 Any change here must preserve these properties: do not add per-file disk writes,
 do not read whole large entries into RAM on the UI thread, and keep the
