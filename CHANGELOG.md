@@ -10,6 +10,13 @@ next release.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-06
+
+Photos, music and getting around: camera RAW and Photoshop previews, music in
+the preview, a slideshow, back and forward, sorting, and archives inside an
+archive (experimental). From this release on, every release comes with
+downloads for Windows, macOS and Linux.
+
 ### Added
 
 - **Downloads.** From this release on, each release on GitLab comes with an
@@ -214,6 +221,7 @@ The first public version: the state of Archy when the repository was created.
 - Opens archives from the command line, "Open with" (Windows, Linux) and the
   Dock (macOS).
 
-[Unreleased]: https://gitlab.com/bytefulminds/archy/-/compare/v0.1.0...main
+[Unreleased]: https://gitlab.com/bytefulminds/archy/-/compare/v0.2.0...main
+[0.2.0]: https://gitlab.com/bytefulminds/archy/-/compare/v0.1.0...v0.2.0
 [0.1.0]: https://gitlab.com/bytefulminds/archy/-/compare/v0.0.1...v0.1.0
 [0.0.1]: https://gitlab.com/bytefulminds/archy/-/tags/v0.0.1

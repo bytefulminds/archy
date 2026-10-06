@@ -7,7 +7,7 @@
 **Look inside your archives like a normal folder: browse, preview and take out
 what you need, without unpacking anything.**
 
-**Version 0.1.0** · installers for Windows, macOS and Linux are on their way
+**Version 0.2.0** · [download](https://gitlab.com/bytefulminds/archy/-/releases) for Windows, macOS and Linux
 
 [![pipeline](https://gitlab.com/bytefulminds/archy/badges/main/pipeline.svg)](https://gitlab.com/bytefulminds/archy/-/pipelines)
 ![license: MIT](https://img.shields.io/badge/license-MIT-45C0CD)
@@ -95,8 +95,13 @@ English and Dutch, with room for more languages.
 
 ## Getting started
 
-Installers for Windows, macOS and Linux are on their way. Until then you run
-Archy with Python 3.11 or newer:
+Download Archy from the
+[releases page](https://gitlab.com/bytefulminds/archy/-/releases): the
+`setup.exe` for Windows, the `.dmg` for your Mac (Apple Silicon or Intel) or the
+`.AppImage` for Linux. The apps are not signed yet; the release notes say how
+to open them the first time.
+
+Or run Archy from source, with Python 3.11 or newer:
 
 ```bash
 git clone https://gitlab.com/bytefulminds/archy.git
