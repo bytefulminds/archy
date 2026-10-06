@@ -244,6 +244,14 @@ class FolderSortProxy(QSortFilterProxyModel):
 
         lv = model.data(left, SORT_ROLE)
         rv = model.data(right, SORT_ROLE)
+        if lv == rv and left.column() != 0:
+            # Equal sizes or dates (folders have none): A to Z by name, also
+            # when sorting descending, so the order is stable and readable.
+            lname = model.data(model.index(left.row(), 0), SORT_ROLE)
+            rname = model.data(model.index(right.row(), 0), SORT_ROLE)
+            if self.sortOrder() == Qt.SortOrder.DescendingOrder:
+                return rname < lname
+            return lname < rname
         try:
             return lv < rv
         except TypeError:

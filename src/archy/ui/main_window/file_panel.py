@@ -6,6 +6,7 @@ from PySide6.QtCore import (
     QSize,
     Qt,
 )
+from PySide6.QtGui import QAction, QActionGroup
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QButtonGroup,
@@ -14,6 +15,7 @@ from PySide6.QtWidgets import (
     QHeaderView,
     QLabel,
     QListView,
+    QMenu,
     QSizePolicy,
     QStackedWidget,
     QTableView,
@@ -161,6 +163,7 @@ class FilePanelMixin:
         self._folder_hint.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         row.addWidget(self._folder_hint)
         row.addStretch(1)
+        row.addWidget(self._build_sort_button())
 
         switch = QFrame()
         switch.setObjectName("viewSwitch")
@@ -194,6 +197,86 @@ class FilePanelMixin:
         row.addWidget(switch)
         return bar
 
+    # ------------------------------------------------------------- sorting
+    # Every view shows the same sorted proxy, so one sort serves them all. The
+    # details table's header and this menu drive the same sort; the choice is
+    # saved in the settings. Folders always stay above files.
+    _SORT_CHOICES = (
+        (0, "column.name"),
+        (4, "column.type"),
+        (1, "column.size"),
+        (5, "column.modified"),
+    )
+    _SORT_LABELS = (
+        "column.name",
+        "column.size",
+        "column.compressed",
+        "column.ratio",
+        "column.type",
+        "column.modified",
+    )
+
+    def _build_sort_button(self) -> QToolButton:
+        button = QToolButton()
+        button.setObjectName("sortButton")
+        button.setToolTip(tr("sort.tip"))
+        button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        button.setIcon(theme.symbol_icon("sort", 16, theme.TEXT_SECONDARY))
+        button.setIconSize(QSize(16, 16))
+        button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        button.setCursor(Qt.CursorShape.PointingHandCursor)
+        menu = QMenu(button)
+        self._sort_column_actions: dict[int, QAction] = {}
+        columns = QActionGroup(menu)
+        for column, key in self._SORT_CHOICES:
+            action = QAction(tr(key), menu, checkable=True)
+            action.triggered.connect(lambda _c=False, c=column: self._sort_by(c, None))
+            columns.addAction(action)
+            menu.addAction(action)
+            self._sort_column_actions[column] = action
+        menu.addSeparator()
+        orders = QActionGroup(menu)
+        self._sort_order_actions: dict[bool, QAction] = {}
+        for descending, key in ((False, "sort.ascending"), (True, "sort.descending")):
+            action = QAction(tr(key), menu, checkable=True)
+            action.triggered.connect(lambda _c=False, d=descending: self._sort_by(None, d))
+            orders.addAction(action)
+            menu.addAction(action)
+            self._sort_order_actions[descending] = action
+        button.setMenu(menu)
+        self._sort_button = button
+        return button
+
+    def _sort_by(self, column: int | None, descending: bool | None) -> None:
+        """Sort every view by ``column`` / in that order (None: keep)."""
+        header = self._table.horizontalHeader()
+        if column is None:
+            column = header.sortIndicatorSection()
+        if descending is None:
+            descending = header.sortIndicatorOrder() == Qt.SortOrder.DescendingOrder
+        order = Qt.SortOrder.DescendingOrder if descending else Qt.SortOrder.AscendingOrder
+        self._table.sortByColumn(column, order)  # -> _on_sort_changed
+
+    def _on_sort_changed(self, column: int, order: Qt.SortOrder) -> None:
+        descending = order == Qt.SortOrder.DescendingOrder
+        for value, action in self._sort_column_actions.items():
+            action.setChecked(value == column)
+        self._sort_order_actions[descending].setChecked(True)
+        label = tr(self._SORT_LABELS[column]) if 0 <= column < len(self._SORT_LABELS) else ""
+        # Compact (icon + arrow) so the view switch keeps its full labels; the
+        # tooltip and the menu say what it sorts on.
+        self._sort_button.setText("↓" if descending else "↑")
+        self._sort_button.setToolTip(
+            tr(
+                "sort.tip_current",
+                column=label,
+                order=tr("sort.descending" if descending else "sort.ascending").lower(),
+            )
+        )
+        if getattr(self, "_sort_ready", False):  # not while restoring it at startup
+            self._settings.set("view/sort_column", column)
+            self._settings.set("view/sort_descending", descending)
+
     def _build_table(self) -> QTableView:
         table = QTableView()
         table.setModel(self._proxy)
@@ -203,7 +286,17 @@ class FilePanelMixin:
         table.setEditTriggers(QTableView.EditTrigger.NoEditTriggers)
         table.setAlternatingRowColors(True)
         table.setSortingEnabled(True)
-        table.sortByColumn(0, Qt.SortOrder.AscendingOrder)
+        table.horizontalHeader().sortIndicatorChanged.connect(self._on_sort_changed)
+        self._table = table  # _on_sort_changed and _sort_by use it
+        table.sortByColumn(
+            self._settings.sort_column,
+            Qt.SortOrder.DescendingOrder
+            if self._settings.sort_descending
+            else Qt.SortOrder.AscendingOrder,
+        )
+        header = table.horizontalHeader()
+        self._on_sort_changed(header.sortIndicatorSection(), header.sortIndicatorOrder())
+        self._sort_ready = True
         table.verticalHeader().setVisible(False)
         table.horizontalHeader().setStretchLastSection(False)
         table.doubleClicked.connect(self._on_double_clicked)

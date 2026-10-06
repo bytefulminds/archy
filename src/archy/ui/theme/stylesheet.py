@@ -232,6 +232,13 @@ _TEMPLATE = """
         border: 1px solid {_EDGE_SOFT};
         border-radius: 16px;
     }}
+    QToolButton#sortButton {{
+        background: rgba(255, 255, 255, 0.03); color: {TEXT_SECONDARY};
+        border: 1px solid {_EDGE_SOFT}; border-radius: 16px; padding: 0 12px 0 10px;
+        min-height: 32px; max-height: 32px; font-size: 12px; font-weight: 500;
+    }}
+    QToolButton#sortButton:hover {{ background: {_GLASS_STRONG}; color: {TEXT_PRIMARY}; }}
+    QToolButton#sortButton::menu-indicator {{ image: none; width: 0; }}
     QToolButton#viewButton {{
         background: transparent; color: {TEXT_DISABLED};
         border: none; border-radius: 13px; padding: 0 13px;

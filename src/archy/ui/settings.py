@@ -42,6 +42,10 @@ _DEFAULTS = {
     "ui/language": "auto",  # "auto" (system language, else English) | a code ("nl")
     "view/start": 3,  # Large thumbnails
     "view/compact_density": False,
+    # Sort order of every view: a column of the details table (0 Name, 1 Size,
+    # 2 Compressed, 3 Ratio, 4 Type, 5 Modified); folders always come first.
+    "view/sort_column": 0,
+    "view/sort_descending": False,
     "preview/fill": "contain",  # "contain" (whole image) | "cover" (fill, crop)
     "window/remember": True,
     # "memory" (RAM only) | "overflow" (RAM first, rest encrypted on disk) |
@@ -107,6 +111,15 @@ class Settings:
     def start_view(self) -> int:
         v = self._get_int("view/start")
         return v if 0 <= v < len(VIEW_KEYS) else 3
+
+    @property
+    def sort_column(self) -> int:
+        v = self._get_int("view/sort_column")
+        return v if 0 <= v <= 5 else 0
+
+    @property
+    def sort_descending(self) -> bool:
+        return self._get_bool("view/sort_descending")
 
     @property
     def compact_density(self) -> bool:

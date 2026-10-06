@@ -219,7 +219,12 @@ class GridDelegate(QStyledItemDelegate):
         painter.drawText(QRect(left, name_y, width, 16), Qt.AlignmentFlag.AlignVCenter, name)
         subtitle = self._subtitle(node)
         if subtitle is not None:
-            painter.setPen(QColor(theme.TEXT_DISABLED))
+            # On the teal selection the muted grey disappears; use the light
+            # text colour, a little softer than the name.
+            muted = QColor(theme.TEXT_PRIMARY if selected else theme.TEXT_DISABLED)
+            if selected:
+                muted.setAlpha(205)
+            painter.setPen(muted)
             mono = QFont(theme.MONO_FAMILY)
             mono.setPointSizeF(8.0)
             painter.setFont(mono)

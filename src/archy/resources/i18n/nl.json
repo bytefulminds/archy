@@ -369,6 +369,10 @@
     "notice.mixed_text": {
       "one": "{count} van de {total} bestanden zit in een gecomprimeerd blok en opent daardoor trager dan de rest. Maak het archief opnieuw met Opslaan (geen compressie) en elk bestand opent snel.",
       "other": "{count} van de {total} bestanden zitten in gecomprimeerde blokken en openen daardoor trager dan de rest. Maak het archief opnieuw met Opslaan (geen compressie) en elk bestand opent snel."
-    }
+    },
+    "sort.tip": "Sorteren",
+    "sort.ascending": "Oplopend",
+    "sort.descending": "Aflopend",
+    "sort.tip_current": "Sorteren: {column}, {order}"
   }
 }

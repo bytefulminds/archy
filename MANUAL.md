@@ -47,6 +47,10 @@ archive by type: images, videos, documents and other files.
 - **Search the whole archive** by name or path with **Ctrl+Shift+F**; the
   results show where each file lives. Double-click one to go there.
 - **Filter the current folder** with **Ctrl+F**.
+- **Sort** by name, type, size or date modified, ascending or descending, with
+  the sort button next to the views (in the list view also by clicking a
+  column header). Folders always come first, in search results too. Archy
+  remembers the sort for next time.
 
 When you open a folder in a thumbnail view (or the first file in it), Archy
 reads the whole folder in one pass in the background and makes every

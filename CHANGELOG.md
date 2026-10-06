@@ -10,6 +10,23 @@ next release.
 
 ## [Unreleased]
 
+### Added
+
+- **Sort in every view.** A sort button next to the views sorts the folder by
+  name, type, size or date modified, ascending or descending; it works in the
+  thumbnail views too and follows the column headers of the list view. Folders
+  always stay first, and Archy remembers the choice.
+
+### Changed
+
+- Items with the same size or date (such as folders) are ordered by name
+  instead of in no particular order.
+
+### Fixed
+
+- The grey path (in search results) and size under a selected thumbnail were
+  hard to read on the teal selection; they are now shown in a light colour.
+
 ## [0.1.0] - 2026-10-04
 
 The first release with the big-backup work: direct reads from stored 7z

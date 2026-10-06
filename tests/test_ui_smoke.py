@@ -771,3 +771,67 @@ def test_pdf_preview_knows_its_pages_title_and_author() -> None:
     assert details["details.pages"] == "2 pages"
     assert details["details.title"] == "Reisverslag"
     widget._zx_cleanup()
+
+
+def test_sorting_applies_to_every_view_keeps_folders_first_and_is_remembered(tmp_path) -> None:  # noqa: ANN001
+    import time
+    import zipfile
+
+    from PySide6.QtCore import QCoreApplication
+
+    from archy.ui import theme
+    from archy.ui.main_window import MainWindow
+
+    archive = tmp_path / "sort.zip"
+    with zipfile.ZipFile(archive, "w") as z:
+        z.writestr("b-map/inside.txt", b"x")
+        z.writestr("a-map/big-photo.jpg", b"x" * 500)
+        z.writestr("small.txt", b"x" * 10)
+        z.writestr("large.txt", b"x" * 900)
+        z.writestr("medium.jpg", b"x" * 300)
+
+    app = _app()
+    theme.apply(app)
+    org, name = QCoreApplication.organizationName(), QCoreApplication.applicationName()
+    QCoreApplication.setOrganizationName("ArchyTest")
+    QCoreApplication.setApplicationName("ArchyTestSort")
+    try:
+        from archy.ui.settings import Settings
+
+        Settings()._q.clear()
+        window = MainWindow()
+        window.resize(1100, 700)
+        window.show()
+        _open(window, archive)
+
+        def names() -> list[str]:
+            proxy = window._proxy
+            return [window._node_at(proxy.index(r, 0)).name for r in range(proxy.rowCount())]
+
+        window._switch_view(2)  # thumbnails: no header, the sort menu drives it
+        window._sort_by(1, True)  # size, largest first
+        assert names() == ["a-map", "b-map", "large.txt", "medium.jpg", "small.txt"]
+        assert window._sort_button.text() == "↓"
+        assert window._sort_column_actions[1].isChecked()
+        assert window._table.horizontalHeader().sortIndicatorSection() == 1  # in sync
+
+        # Archive-wide search: folders above files, whatever the sort.
+        window._focus_search("archive")
+        window._search.setText("map")
+        window._apply_archive_search()
+        found = names()
+        assert found[:2] == ["a-map", "b-map"] and set(found[2:]) == {"inside.txt", "big-photo.jpg"}
+        window._search.clear()
+        app.processEvents()
+
+        # Remembered for the next window (and the next start).
+        again = MainWindow()
+        assert again._settings.sort_column == 1 and again._settings.sort_descending
+        assert again._table.horizontalHeader().sortIndicatorSection() == 1
+        again.close()
+        window.close()
+        time.sleep(0.01)
+        Settings()._q.clear()
+    finally:
+        QCoreApplication.setOrganizationName(org)
+        QCoreApplication.setApplicationName(name)
