@@ -16,6 +16,13 @@ next release.
   libraries Archy needs, a 7z and an encrypted zip in memory, an HTML page,
   and its resources. The installers are checked with it before they are published.
 
+### Fixed
+
+- On macOS, opening an HTML page that uses a stylesheet closed Archy.
+- Quitting Archy while an HTML page was shown could end in a crash.
+- A file opened with Archy from the Finder (Open With, or a drop on the Dock
+  icon) while Archy was still starting is now opened once the window is there.
+
 ## [0.2.0] - 2026-10-06
 
 Photos, music and getting around: camera RAW and Photoshop previews, music in

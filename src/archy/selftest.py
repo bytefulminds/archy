@@ -105,9 +105,38 @@ def _check_web_in_child() -> None:
         raise RuntimeError(f"exit code {result.returncode}:\n        {tail}")
 
 
+_WEB_PAGE = (
+    '<html><head><link rel="stylesheet" href="css/site.css"></head><body>'
+    '<header><h1>Archy</h1></header><div class="row"><p>alpha</p><p>beta</p></div>'
+    '<img src="img/dot.png" alt=""></body></html>'
+)
+_WEB_CSS = (
+    b"body { margin: 0; font-family: sans-serif; background: linear-gradient(#fff, #cde); }"
+    b" header { box-shadow: 0 4px 12px rgba(0,0,0,.4); border-radius: 12px; padding: 8px; }"
+    b" .row { display: flex; gap: 10px; transform: rotate(-2deg); opacity: .9; }"
+    b" .row p { filter: blur(0.5px); backdrop-filter: blur(2px); }"
+    b" h1 { text-shadow: 1px 1px 2px #000; transition: color .3s; }"
+)
+
+
+def _png() -> bytes:
+    from PySide6.QtCore import QBuffer, QByteArray
+    from PySide6.QtGui import QColor, QImage
+
+    image = QImage(8, 8, QImage.Format.Format_RGB32)
+    image.fill(QColor("#45c0cd"))
+    data = QByteArray()
+    buffer = QBuffer(data)
+    buffer.open(QBuffer.OpenModeFlag.WriteOnly)
+    image.save(buffer, "PNG")
+    return bytes(data)
+
+
 def run_web() -> int:
-    """``--self-test-web``: render a small page with QtWebEngine and exit 0
-    when it loaded (run by the self-test in a child process)."""
+    """``--self-test-web``: show a styled page (stylesheet and image from the
+    "archive") the way the preview does, keep it on screen a few seconds, and
+    exit 0 when it loaded and Chromium kept running (run by the self-test in a
+    child process)."""
     from archy.services import web_view
 
     def say(line: str) -> None:
@@ -117,25 +146,57 @@ def run_web() -> int:
     if not web_view.prepare():
         say("QtWebEngine cannot be set up")
         return 2
-    from PySide6.QtWidgets import QApplication
+    from archy.app import _application_class
 
-    app = QApplication(sys.argv[:1])
-    view = web_view.make_web_view("check.html", None)
+    app = _application_class()(sys.argv[:1])  # the application class Archy runs with
+    from archy.services import text_view
+    from archy.services.providers import make_text_preview
+
+    files = {"css/site.css": _WEB_CSS, "img/dot.png": _png()}
+    asked: list[str] = []
+
+    def read(reference: str) -> bytes | None:
+        asked.append(reference)
+        return files.get(reference)
+
+    read.base = "site"  # type: ignore[attr-defined]
+    text_view._show_source["html"] = False
+    widget, _edit = make_text_preview("index.html", _WEB_PAGE, editable=False, resources=read)
+    widget.resize(480, 320)
+    widget.show()
+    view = getattr(widget, "rendered", None)
+    if view is None or not hasattr(view, "page"):
+        say(f"no web view in the preview ({type(view).__name__})")
+        return 1
     loaded: list[bool] = []
-    view.loadFinished.connect(loaded.append)  # type: ignore[attr-defined]
-    view.resize(320, 200)
-    view.show()
-    view.set_html("<html><body><p>Archy</p></body></html>")  # type: ignore[attr-defined]
-    deadline = time.monotonic() + 60
-    while not loaded and time.monotonic() < deadline:
-        app.processEvents()
-        time.sleep(0.01)
-    ok = bool(loaded and loaded[0])
-    say("page loaded" if ok else "page did not load")
-    view.close()
-    view.deleteLater()
+    ended: list[str] = []
+    view.loadFinished.connect(loaded.append)
+    view.page().renderProcessTerminated.connect(
+        lambda status, code: ended.append(f"{status.name} ({code})")
+    )
+
+    def pump(seconds: float, until: Callable[[], bool] = lambda: False) -> None:
+        end = time.monotonic() + seconds
+        while time.monotonic() < end and not until() and not ended:
+            app.processEvents()
+            time.sleep(0.01)
+
+    pump(60, lambda: bool(loaded))
+    pump(3.0)  # stay on screen: compositing and the GPU process get going
+    if ended:
+        say(f"Chromium's page process ended: {ended[0]}")
+        return 1
+    if not (loaded and loaded[0]):
+        say("page did not load")
+        return 1
+    if "css/site.css" not in asked:
+        say(f"the stylesheet was not asked for ({asked})")
+        return 1
+    say("page loaded and shown")
+    widget.close()
+    app.aboutToQuit.emit()  # what quitting the app does: pages before the profile
     app.processEvents()
-    return 0 if ok else 1
+    return 0
 
 
 def _libarchive() -> str:

@@ -147,6 +147,20 @@ class _Runtime:
         profile.setUrlRequestInterceptor(self.interceptor)
         profile.downloadRequested.connect(lambda download: download.cancel())
         self.profile = profile
+        # Pages must go before their profile: Chromium crashes when the profile
+        # is released while a page still uses it (at quit, the QApplication
+        # would delete the profile before the window and its preview).
+        self.views: dict[str, QWidget] = {}
+        app.aboutToQuit.connect(self.release_views)
+
+    def release_views(self) -> None:
+        import shiboken6
+
+        for view in list(self.views.values()):
+            with contextlib.suppress(RuntimeError):  # already gone
+                if shiboken6.isValid(view):
+                    shiboken6.delete(view)
+        self.views.clear()
 
 
 def _serve(page: _Page, path: str) -> tuple[bytes, bytes] | None:
@@ -200,8 +214,11 @@ def make_web_view(name: str, resources: ResourceReader | None) -> QWidget:
     entry = _Page(posixpath.join(base, name) if base else name, base, resources)
     runtime.pages[token] = entry
 
+    runtime.views[token] = view
+
     def forget(_obj: QObject | None = None, key: str = token) -> None:
         runtime.pages.pop(key, None)
+        runtime.views.pop(key, None)
 
     view.destroyed.connect(forget)
 
