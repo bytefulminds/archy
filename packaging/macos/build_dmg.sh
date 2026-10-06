@@ -1,58 +1,44 @@
 #!/usr/bin/env bash
-# Build a macOS .app and wrap it in a .dmg. Run on macOS, from the repo root,
-# inside the project venv:
-#   ./packaging/macos/build_dmg.sh
+# Build Archy for macOS in one go: venv, PyInstaller, self-test, .dmg.
 #
-# Requirements: Python 3.11+, the project installed with dev extras + pyinstaller,
-# and Homebrew's libarchive (`brew install libarchive`) so the spec can bundle
-# the dylib into the .app (Homebrew's libarchive is keg-only; the spec looks it
-# up automatically, or set LIBARCHIVE=<path to libarchive.dylib> to override).
+#   ./packaging/macos/build_dmg.sh            # -> dist/Archy-<version>-macos-<arch>.dmg
+#   ./packaging/macos/build_dmg.sh --publish  # ... and add it to the GitLab release
+#
+# Needs Python 3.11+ (python3) and Homebrew; installs libarchive with brew and
+# the project + PyInstaller into .venv when missing. --publish needs
+# GITLAB_TOKEN (a personal access token with the api scope).
 set -euo pipefail
+cd "$(dirname "$0")/../.."
 
-ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-cd "$ROOT"
-
-APP="Archy"
 VERSION="$(sed -n 's/^__version__ = "\(.*\)"/\1/p' src/archy/__init__.py)"
-ARCH="$(uname -m)"  # arm64 (Apple Silicon) or x86_64 (Intel): one .dmg per Mac type
-DIST="$ROOT/dist"
-DMG="$DIST/${APP}-${VERSION}-macos-${ARCH}.dmg"
+DMG="dist/Archy-${VERSION}-macos-$(uname -m).dmg"
 
-# The Python of the project venv when there is one (PyInstaller bundles what
-# that Python can import), else the active one.
-PY="${PYTHON:-}"
-[ -z "$PY" ] && [ -x "$ROOT/.venv/bin/python" ] && PY="$ROOT/.venv/bin/python"
-[ -z "$PY" ] && PY="$(command -v python3 || command -v python)"
+echo ">> Setup"
+brew list libarchive >/dev/null 2>&1 || brew install libarchive
+[ -x .venv/bin/python ] || python3 -m venv .venv
+.venv/bin/python -m pip install -q --upgrade pip
+.venv/bin/python -m pip install -q -e ".[dev]" pyinstaller
 
-echo ">> PyInstaller .app bundle ($PY)"
-"$PY" -m PyInstaller packaging/archy.spec --noconfirm --distpath "$DIST" --workpath "$ROOT/build"
+echo ">> Build"
+rm -rf build dist
+.venv/bin/python -m PyInstaller packaging/archy.spec --noconfirm
 
-test -d "$DIST/${APP}.app" || { echo "ERROR: $DIST/${APP}.app not built"; exit 1; }
+# No Developer ID: an ad-hoc signature (Apple Silicon runs no unsigned code,
+# and Gatekeeper offers "Open Anyway" only for signed apps).
+codesign --verify --deep --strict dist/Archy.app 2>/dev/null ||
+    codesign --force --deep --sign - dist/Archy.app
 
-echo ">> Self-test of the app"
-"$DIST/${APP}.app/Contents/MacOS/${APP}" --self-test
+echo ">> Self-test"
+dist/Archy.app/Contents/MacOS/Archy --self-test
 
-# No Developer ID: the app gets an ad-hoc signature (Apple Silicon refuses to
-# run unsigned code, and Gatekeeper only offers "Open Anyway" for signed apps).
-# PyInstaller signs the pieces; make sure the bundle as a whole is valid.
-echo ">> Checking the ad-hoc signature"
-if ! codesign --verify --deep --strict "$DIST/${APP}.app" 2>/dev/null; then
-    codesign --force --deep --sign - "$DIST/${APP}.app"
-fi
-codesign --verify --deep --strict "$DIST/${APP}.app"
-
-echo ">> Staging .dmg contents (app + Applications symlink)"
+echo ">> Disk image"
 STAGE="$(mktemp -d)"
-cp -R "$DIST/${APP}.app" "$STAGE/"
+cp -R dist/Archy.app "$STAGE/"
 ln -s /Applications "$STAGE/Applications"
-
-echo ">> Creating .dmg"
-rm -f "$DMG"
-hdiutil create -volname "$APP" -srcfolder "$STAGE" -ov -format UDZO "$DMG"
+hdiutil create -volname Archy -srcfolder "$STAGE" -ov -format UDZO "$DMG" >/dev/null
 rm -rf "$STAGE"
 echo ">> Done: $DMG"
 
-# The app is not notarized (no Apple Developer account). On first launch users
-# allow it once in System Settings > Privacy & Security > Open Anyway (macOS 15
-# and later; on older versions right-click the app -> Open). See
-# packaging/macos/README.md.
+if [ "${1:-}" = "--publish" ]; then
+    .venv/bin/python scripts/publish_build.py "$DMG"
+fi

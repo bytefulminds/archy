@@ -2,29 +2,28 @@
 
 Produces `Archy.app` and wraps it in an unsigned `.dmg`.
 
-## Prerequisites
-
-- macOS (Apple Silicon or Intel), Python 3.11+.
-- The project installed with dev extras and PyInstaller:
-  `pip install -e ".[dev]" pyinstaller`
-- Homebrew libarchive: `brew install libarchive`. It is keg-only, so the
-  PyInstaller spec looks it up in the usual Homebrew locations and bundles the
-  dylib into the app; at runtime `native.py` points `LIBARCHIVE` at the bundled
-  copy, so the app is self-contained. To use a specific dylib, set
-  `LIBARCHIVE=/path/to/libarchive.dylib` before building.
-
 ## Build
+
+On macOS (Apple Silicon or Intel) with Python 3.11+ and Homebrew, from the
+repo root:
 
 ```bash
 ./packaging/macos/build_dmg.sh
 # -> dist/Archy.app  and  dist/Archy-<version>-macos-<arch>.dmg
 ```
 
-Or just the app bundle:
+`build_dmg.sh` does everything: it installs libarchive with Homebrew and creates
+`.venv` with the project and PyInstaller when missing, builds the app with the
+venv's Python, gives it an ad-hoc signature, runs `Archy --self-test` on it
+(stops when a library is missing or an HTML page cannot be shown) and makes the
+.dmg. With `--publish` (and `GITLAB_TOKEN`) it also adds the .dmg to the GitLab
+release.
 
-```bash
-pyinstaller packaging/archy.spec --noconfirm
-```
+Homebrew's libarchive is keg-only; the PyInstaller spec looks it up in the
+usual Homebrew locations and bundles the dylib into the app, and at runtime
+`native.py` points `LIBARCHIVE` at the bundled copy, so the app is
+self-contained. To use a specific dylib, set `LIBARCHIVE=/path/to/libarchive.dylib`
+before building.
 
 ## Gatekeeper (unsigned build)
 

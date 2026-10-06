@@ -129,12 +129,8 @@ build:windows:
       when: manual
       allow_failure: true
   script:
-    - pip install -e ".[dev]" pyinstaller
-    - python -m PyInstaller packaging\archy.spec --noconfirm
-    # No native lib needed (zip/7z/tar are pure Python). Optional: drop
-    # libarchive.dll into dist\Archy\ here to add rar/exotic support.
-    # Build the installer once Inno Setup is on the runner:
-    # - ISCC packaging\windows\archy.iss
+    # The same one-command build as on a PC (see RELEASING.md).
+    - powershell -ExecutionPolicy Bypass -File packaging\windows\build.ps1
   artifacts:
     name: "Archy-windows"
     paths:
@@ -150,8 +146,7 @@ build:macos:
       when: manual
       allow_failure: true
   script:
-    - pip install -e ".[dev]" pyinstaller
-    - brew install libarchive || true
+    # The same one-command build as on a Mac (see RELEASING.md).
     - chmod +x packaging/macos/build_dmg.sh
     - ./packaging/macos/build_dmg.sh
   artifacts:

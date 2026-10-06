@@ -4,15 +4,22 @@ everything it needs, without opening a window.
 The build scripts run it on the freshly built bundle, so a package that would
 fail on a user's machine (a module PyInstaller left out, a missing resource
 folder) stops the build instead. It imports the libraries Archy loads lazily,
-round-trips a small 7z and AES zip in memory, and checks the resource folders.
-Nothing is written to disk. Exit code 0 when all is well, 1 otherwise.
+round-trips a small 7z and AES zip in memory, checks the resource folders, and
+renders a small HTML page with QtWebEngine in a separate process (Chromium's
+helper process is the part of a package most likely to be broken, and a broken
+one takes the whole app down; in a child process that shows up as a failed
+check with its output instead). Nothing is written to disk. Exit code 0 when
+all is well, 1 otherwise.
 """
 
 from __future__ import annotations
 
 import importlib
 import io
+import os
+import subprocess
 import sys
+import time
 from collections.abc import Callable
 from pathlib import Path
 
@@ -80,6 +87,57 @@ def _check_resources() -> None:
         raise RuntimeError(f"missing resources: {', '.join(missing)} (in {base})")
 
 
+def _check_web_in_child() -> None:
+    """Run ``--self-test-web`` in a child process and report how it ended."""
+    if getattr(sys, "frozen", False):
+        command = [sys.executable, "--self-test-web"]
+    else:
+        command = [sys.executable, "-m", "archy", "--self-test-web"]
+    try:
+        result = subprocess.run(command, capture_output=True, text=True, timeout=120)
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError("no answer within 120 s") from exc
+    if result.returncode != 0:
+        output = (result.stdout + result.stderr).strip().splitlines()
+        # The cause (a Qt or Chromium message) comes first, a crash trace last.
+        shown = output if len(output) <= 30 else [*output[:12], "...", *output[-15:]]
+        tail = "\n        ".join(shown) or "(no output)"
+        raise RuntimeError(f"exit code {result.returncode}:\n        {tail}")
+
+
+def run_web() -> int:
+    """``--self-test-web``: render a small page with QtWebEngine and exit 0
+    when it loaded (run by the self-test in a child process)."""
+    from archy.services import web_view
+
+    def say(line: str) -> None:
+        if sys.stdout is not None:  # a windowed Windows build may have none
+            print(line, flush=True)
+
+    if not web_view.prepare():
+        say("QtWebEngine cannot be set up")
+        return 2
+    from PySide6.QtWidgets import QApplication
+
+    app = QApplication(sys.argv[:1])
+    view = web_view.make_web_view("check.html", None)
+    loaded: list[bool] = []
+    view.loadFinished.connect(loaded.append)  # type: ignore[attr-defined]
+    view.resize(320, 200)
+    view.show()
+    view.set_html("<html><body><p>Archy</p></body></html>")  # type: ignore[attr-defined]
+    deadline = time.monotonic() + 60
+    while not loaded and time.monotonic() < deadline:
+        app.processEvents()
+        time.sleep(0.01)
+    ok = bool(loaded and loaded[0])
+    say("page loaded" if ok else "page did not load")
+    view.close()
+    view.deleteLater()
+    app.processEvents()
+    return 0 if ok else 1
+
+
 def _libarchive() -> str:
     """Optional (rar and exotic formats): reported, not required."""
     from archy.core.native import ensure_libarchive_env, libarchive_available
@@ -123,6 +181,8 @@ def run(out: Callable[[str], None] | None = None) -> int:
         ("AES zip round trip", _check_aes_zip),
         ("resources", _check_resources),
     ]
+    if not os.environ.get("ARCHY_NO_WEBENGINE"):
+        checks.append(("HTML page with QtWebEngine", _check_web_in_child))
     for label, check in checks:
         try:
             check()

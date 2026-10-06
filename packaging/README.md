@@ -39,10 +39,12 @@ Then the per-OS installer:
 - **Linux:** `./packaging/build_appimage.sh` ->
   `dist/Archy-<version>-linux-<arch>.AppImage` (needs `binutils` and
   `libxcb-cursor0` on the build host; fetches `appimagetool` automatically).
-- **Windows:** see [`windows/README.md`](windows/README.md) (needs
-  `libarchive.dll` + Inno Setup).
-- **macOS:** see [`macos/README.md`](macos/README.md) (needs
-  `brew install libarchive`; produces an unsigned `.dmg`).
+- **Windows:** `packaging\windows\build.ps1` -> `Archy-<version>-setup.exe`
+  (sets up the venv and Inno Setup itself); see
+  [`windows/README.md`](windows/README.md).
+- **macOS:** `./packaging/macos/build_dmg.sh` -> `Archy-<version>-macos-<arch>.dmg`
+  (sets up the venv and libarchive itself); see
+  [`macos/README.md`](macos/README.md).
 
 ## CI
 

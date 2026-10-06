@@ -69,7 +69,7 @@ def test_release_notes_come_from_the_changelog_and_check_the_tag() -> None:
 def test_download_names_match_the_build_scripts_and_ci() -> None:
     # The release links in CI and the notes name the files the scripts build.
     assert "${APP}-${VERSION}-linux-${ARCH}.AppImage" in _read("packaging/build_appimage.sh")
-    assert "${APP}-${VERSION}-macos-${ARCH}.dmg" in _read("packaging/macos/build_dmg.sh")
+    assert "Archy-${VERSION}-macos-$(uname -m).dmg" in _read("packaging/macos/build_dmg.sh")
     assert "{#AppName}-{#AppVersion}-setup" in _read("packaging/windows/archy.iss")
     ci = _read(".gitlab-ci.yml")
     assert ci.count("Archy-${VERSION}-linux-x86_64.AppImage") >= 2

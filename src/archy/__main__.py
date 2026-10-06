@@ -27,6 +27,11 @@ def main() -> None:
         from archy.selftest import run as self_test
 
         raise SystemExit(self_test())
+    if "--self-test-web" in sys.argv[1:]:
+        _enable_crash_diagnostics()
+        from archy.selftest import run_web
+
+        raise SystemExit(run_web())
     _enable_crash_diagnostics()
     raise SystemExit(run())
 
