@@ -307,6 +307,7 @@ pip install -e ".[dev]"
 pytest                                  # the full test suite
 QT_QPA_PLATFORM=offscreen pytest        # the same, without a display
 ruff check . && ruff format --check .   # lint and formatting
+archy --self-test                       # check an installation, no window
 ```
 
 The code is organised in three layers:

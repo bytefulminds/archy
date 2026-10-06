@@ -45,6 +45,31 @@ for _line in (SRC / "archy" / "__init__.py").read_text().splitlines():
 ICON_ICO = str(ROOT / "packaging" / "archy.ico")
 ICON_ICNS = str(ROOT / "packaging" / "archy.icns")
 
+# --- preflight --------------------------------------------------------------
+# PyInstaller bundles what the Python that runs it can import. Run from another
+# Python (a global `pyinstaller` instead of the project venv's) and lazily
+# imported libraries such as py7zr are silently left out; the app then fails
+# only when a user opens a 7z. Stop here instead.
+import importlib.util
+
+_REQUIRED = (
+    "PySide6",
+    "py7zr",
+    "pyzipper",
+    "Cryptodome",
+    "charset_normalizer",
+    "psutil",
+    "PIL",
+    "pi_heif",
+    "libarchive",
+)
+_missing = [name for name in _REQUIRED if importlib.util.find_spec(name) is None]
+if _missing:
+    raise SystemExit(
+        f"error: {', '.join(_missing)} cannot be imported by {sys.executable}. "
+        "Run PyInstaller from the project venv: python -m PyInstaller packaging/archy.spec"
+    )
+
 # --- data files -------------------------------------------------------------
 # Ship the resources folder (fonts, the in-app logo, UI translations) next to the code, at the
 # same relative path the app reads from (archy/resources/...).

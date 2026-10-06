@@ -130,7 +130,7 @@ build:windows:
       allow_failure: true
   script:
     - pip install -e ".[dev]" pyinstaller
-    - pyinstaller packaging\archy.spec --noconfirm
+    - python -m PyInstaller packaging\archy.spec --noconfirm
     # No native lib needed (zip/7z/tar are pure Python). Optional: drop
     # libarchive.dll into dist\Archy\ here to add rar/exotic support.
     # Build the installer once Inno Setup is on the runner:

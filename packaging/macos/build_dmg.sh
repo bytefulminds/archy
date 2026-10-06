@@ -18,10 +18,19 @@ ARCH="$(uname -m)"  # arm64 (Apple Silicon) or x86_64 (Intel): one .dmg per Mac 
 DIST="$ROOT/dist"
 DMG="$DIST/${APP}-${VERSION}-macos-${ARCH}.dmg"
 
-echo ">> PyInstaller .app bundle"
-pyinstaller packaging/archy.spec --noconfirm --distpath "$DIST" --workpath "$ROOT/build"
+# The Python of the project venv when there is one (PyInstaller bundles what
+# that Python can import), else the active one.
+PY="${PYTHON:-}"
+[ -z "$PY" ] && [ -x "$ROOT/.venv/bin/python" ] && PY="$ROOT/.venv/bin/python"
+[ -z "$PY" ] && PY="$(command -v python3 || command -v python)"
+
+echo ">> PyInstaller .app bundle ($PY)"
+"$PY" -m PyInstaller packaging/archy.spec --noconfirm --distpath "$DIST" --workpath "$ROOT/build"
 
 test -d "$DIST/${APP}.app" || { echo "ERROR: $DIST/${APP}.app not built"; exit 1; }
+
+echo ">> Self-test of the app"
+"$DIST/${APP}.app/Contents/MacOS/${APP}" --self-test
 
 # No Developer ID: the app gets an ad-hoc signature (Apple Silicon refuses to
 # run unsigned code, and Gatekeeper only offers "Open Anyway" for signed apps).

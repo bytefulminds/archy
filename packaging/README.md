@@ -18,6 +18,12 @@ by the preview, and py7zr's lazily-imported submodules. zip, 7z and tar
 absent (typically Windows), those formats are simply reported as unsupported and
 everything else works.
 
+Run PyInstaller with the project venv's Python (`python -m PyInstaller`): it
+bundles what that Python can import, and the spec stops when a required
+library is missing. The build scripts then run `Archy --self-test` on the
+bundle, which imports the lazily loaded libraries, round-trips a 7z and an AES
+zip in memory and checks the resources.
+
 A PyInstaller build is **OS- and architecture-specific**: build each target on
 that OS/arch. There is no cross-compilation.
 
@@ -25,7 +31,7 @@ that OS/arch. There is no cross-compilation.
 
 ```bash
 pip install -e ".[dev]" pyinstaller
-pyinstaller packaging/archy.spec --noconfirm   # -> dist/Archy[.app]
+python -m PyInstaller packaging/archy.spec --noconfirm   # -> dist/Archy[.app]
 ```
 
 Then the per-OS installer:

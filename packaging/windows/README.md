@@ -7,7 +7,8 @@ file associations.
 ## Prerequisites
 
 - Windows 10/11 (x64), Python 3.11+.
-- The project installed with dev extras and PyInstaller:
+- A virtual environment with the project, its dev extras and PyInstaller:
+  `py -3.12 -m venv .venv`, `.venv\Scripts\activate`,
   `pip install -e ".[dev]" pyinstaller`
 - [Inno Setup 6](https://jrsoftware.org/isinfo.php) (provides the `ISCC` compiler).
 
@@ -19,14 +20,15 @@ without it.
 ## Build
 
 ```bat
-:: 1. Build the app bundle (one folder with Archy.exe + _internal\)
-pyinstaller packaging\archy.spec --noconfirm
+:: 1. Build the app bundle (one folder with Archy.exe + _internal\), with the
+::    venv's Python so it bundles what the venv has
+python -m PyInstaller packaging\archy.spec --noconfirm
 
 :: 2. (optional) add rar/exotic support: drop libarchive.dll next to the exe
 ::    copy C:\path\to\libarchive.dll dist\Archy\
 
-:: 3. (optional) sanity-check the bundle
-dist\Archy\Archy.exe
+:: 3. Self-test of the bundle: every check "ok", then "self-test passed"
+start /wait dist\Archy\Archy.exe --self-test
 
 :: 4. Build the installer
 ISCC /DAppVersion=<version> packaging\windows\archy.iss

@@ -19,7 +19,14 @@ def _enable_crash_diagnostics() -> None:
 
 
 def main() -> None:
-    """Console entry point. Launches the GUI."""
+    """Console entry point. Launches the GUI (or, with ``--self-test``, checks
+    the installation without opening a window; see selftest.py)."""
+    import sys
+
+    if "--self-test" in sys.argv[1:]:
+        from archy.selftest import run as self_test
+
+        raise SystemExit(self_test())
     _enable_crash_diagnostics()
     raise SystemExit(run())
 

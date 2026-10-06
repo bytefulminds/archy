@@ -10,6 +10,12 @@ next release.
 
 ## [Unreleased]
 
+### Added
+
+- `archy --self-test` checks an installation without opening a window: the
+  libraries Archy needs, a 7z and an encrypted zip in memory, and its
+  resources. The installers are checked with it before they are published.
+
 ## [0.2.0] - 2026-10-06
 
 Photos, music and getting around: camera RAW and Photoshop previews, music in

@@ -21,8 +21,17 @@ VERSION="$(sed -n 's/^__version__ = "\(.*\)"/\1/p' src/archy/__init__.py)"
 DIST="$ROOT/dist"
 APPDIR="$ROOT/build/${APP}.AppDir"
 
-echo ">> PyInstaller bundle"
-pyinstaller packaging/archy.spec --noconfirm --distpath "$DIST" --workpath "$ROOT/build"
+# The Python of the project venv when there is one (PyInstaller bundles what
+# that Python can import), else the active one.
+PY="${PYTHON:-}"
+[ -z "$PY" ] && [ -x "$ROOT/.venv/bin/python" ] && PY="$ROOT/.venv/bin/python"
+[ -z "$PY" ] && PY="$(command -v python3 || command -v python)"
+
+echo ">> PyInstaller bundle ($PY)"
+"$PY" -m PyInstaller packaging/archy.spec --noconfirm --distpath "$DIST" --workpath "$ROOT/build"
+
+echo ">> Self-test of the bundle"
+QT_QPA_PLATFORM=offscreen "$DIST/$APP/$APP" --self-test
 
 echo ">> Assemble AppDir"
 rm -rf "$APPDIR"
