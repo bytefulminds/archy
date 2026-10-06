@@ -7,7 +7,7 @@
 **Look inside your archives like a normal folder: browse, preview and take out
 what you need, without unpacking anything.**
 
-**Version 0.2.0** · [download](https://gitlab.com/bytefulminds/archy/-/releases) for Windows, macOS and Linux
+**Version 0.2.1** · [download](https://gitlab.com/bytefulminds/archy/-/releases) for Windows, macOS and Linux
 
 [![pipeline](https://gitlab.com/bytefulminds/archy/badges/main/pipeline.svg)](https://gitlab.com/bytefulminds/archy/-/pipelines)
 ![license: MIT](https://img.shields.io/badge/license-MIT-45C0CD)
