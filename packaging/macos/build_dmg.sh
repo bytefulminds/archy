@@ -23,6 +23,15 @@ pyinstaller packaging/archy.spec --noconfirm --distpath "$DIST" --workpath "$ROO
 
 test -d "$DIST/${APP}.app" || { echo "ERROR: $DIST/${APP}.app not built"; exit 1; }
 
+# No Developer ID: the app gets an ad-hoc signature (Apple Silicon refuses to
+# run unsigned code, and Gatekeeper only offers "Open Anyway" for signed apps).
+# PyInstaller signs the pieces; make sure the bundle as a whole is valid.
+echo ">> Checking the ad-hoc signature"
+if ! codesign --verify --deep --strict "$DIST/${APP}.app" 2>/dev/null; then
+    codesign --force --deep --sign - "$DIST/${APP}.app"
+fi
+codesign --verify --deep --strict "$DIST/${APP}.app"
+
 echo ">> Staging .dmg contents (app + Applications symlink)"
 STAGE="$(mktemp -d)"
 cp -R "$DIST/${APP}.app" "$STAGE/"
@@ -34,6 +43,7 @@ hdiutil create -volname "$APP" -srcfolder "$STAGE" -ov -format UDZO "$DMG"
 rm -rf "$STAGE"
 echo ">> Done: $DMG"
 
-# The app is unsigned (no Apple Developer account). On first launch users must
-# right-click the app -> Open (or run: xattr -dr com.apple.quarantine <app>).
-# See packaging/macos/README.md.
+# The app is not notarized (no Apple Developer account). On first launch users
+# allow it once in System Settings > Privacy & Security > Open Anyway (macOS 15
+# and later; on older versions right-click the app -> Open). See
+# packaging/macos/README.md.

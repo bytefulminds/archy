@@ -66,7 +66,7 @@ source logo changes.
   `libarchive.dll` for rar/exotic, and code signing to avoid SmartScreen
   warnings.
 - **macOS:** unsigned by design (no Apple Developer account); document the
-  Gatekeeper right-click-Open step. Consider a universal2 build if needed.
+  Gatekeeper "Open Anyway" step. Consider a universal2 build if needed.
 - **Runners:** connect Windows + macOS GitLab runners to build all three in CI
   (for now those two are built locally and added to the release).
 - **Fonts in the wheel:** already handled (`pyproject.toml` `artifacts`).

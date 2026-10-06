@@ -24,8 +24,10 @@ DOWNLOADS = """\
 - **Windows**: `Archy-{version}-setup.exe`. Windows may show a SmartScreen
   warning because the installer is not signed: choose *More info* > *Run anyway*.
 - **macOS**: `Archy-{version}-macos-arm64.dmg` (Apple Silicon) or
-  `-x86_64.dmg` (Intel). The app is not signed: the first time, right-click
-  Archy in Applications and choose *Open*.
+  `-x86_64.dmg` (Intel). Drag Archy to Applications. The app is not notarized
+  by Apple: the first time, open it, close the warning, then go to *System
+  Settings* > *Privacy & Security* and click *Open Anyway* (on macOS 14 and
+  older: right-click Archy and choose *Open*).
 - **Linux**: `Archy-{version}-linux-x86_64.AppImage`. Make it executable
   (`chmod +x`) and run it.
 
