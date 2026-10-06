@@ -37,7 +37,7 @@ from archy.ui.main_window.extract import ExtractMixin
 from archy.ui.main_window.file_panel import FilePanelMixin
 from archy.ui.main_window.header import HeaderMixin
 from archy.ui.main_window.locking import LockMixin
-from archy.ui.main_window.navigation import NavigationMixin
+from archy.ui.main_window.navigation import MouseNavFilter, NavigationMixin
 from archy.ui.main_window.opening import OpeningMixin
 from archy.ui.main_window.preview import PreviewMixin
 from archy.ui.main_window.search import SearchMixin
@@ -101,6 +101,9 @@ class MainWindow(
         self._temp = TempManager(self._settings)
         self._backend: ArchiveBackend | None = None
         self._nav: list[TreeNode] = []
+        # Folders visited, for back/forward (by path inside the archive).
+        self._history: list[tuple[str, ...]] = []
+        self._history_index = -1
         # Search scope: "archive" (default) searches the whole archive and shows
         # a flat results list; "folder" filters just the current folder (Ctrl+F).
         self._search_scope = "archive"
@@ -229,6 +232,15 @@ class MainWindow(
         self.statusBar().hide()  # a custom bottom strip replaces the native one
         self._build_resize_grips(central)
         self._build_progress_widgets()
+        # The mouse's back/forward buttons, wherever they are pressed (the
+        # views' viewports take mouse presses before the window sees them).
+        self._mouse_nav = MouseNavFilter(
+            lambda step: self.go_back() if step < 0 else self.go_forward()
+        )
+        for widget in (self, self._table, self._compact, self._grid, self._large):
+            target = widget.viewport() if hasattr(widget, "viewport") else widget
+            target.installEventFilter(self._mouse_nav)
+        self._preview_container.installEventFilter(self._mouse_nav)
         self._set_status(tr("status.ready"))
         self._update_nav_state()
         self._update_open_state()

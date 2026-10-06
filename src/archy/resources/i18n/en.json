@@ -385,6 +385,13 @@
     "about.licenses_title": "Licenses",
     "details.artist": "Artist: {value}",
     "details.album": "Album: {value}",
-    "details.bitrate": "Bit rate: {value}"
+    "details.bitrate": "Bit rate: {value}",
+    "nav.back": "Back",
+    "nav.forward": "Forward",
+    "crumb.subfolders": "Folders here",
+    "crumb.more": {
+      "one": "{count} more folder",
+      "other": "{count} more folders"
+    }
   }
 }

@@ -117,6 +117,7 @@ class OpeningMixin:
         self._archive_bytes = sum(e.size for e in entries if not e.is_dir)
         root = result.root if result.root is not None else build_tree(entries)
         self._nav = [root]
+        self._reset_history()  # back/forward start over in a new archive
         self._search_timer.stop()
         self._searching = False
         self._search_scope = "archive"
@@ -190,6 +191,7 @@ class OpeningMixin:
         # Free any temp files spilled for this archive's previews.
         self._temp.clear_preview()
         self._nav = []
+        self._reset_history()
         self._search_timer.stop()
         self._searching = False
         self._search_scope = "archive"

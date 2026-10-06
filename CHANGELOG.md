@@ -20,6 +20,11 @@ next release.
   thumbnail when that cannot be read.
 - **Music.** MP3, FLAC, WAV, M4A/AAC, Ogg, Opus, WMA and AIFF play in the
   preview, with cover art, title, artist and album.
+- **Back and forward.** Arrows at the start of the path, the mouse's back and
+  forward buttons and Alt+Left / Alt+Right (Cmd+[ / Cmd+] on macOS) go back and
+  forward through the folders you visited.
+- **Folders next to this one.** Click a / in the path to jump to a folder at
+  that level.
 - **About Archy** in Settings: the version, made by Bytefulminds, the license,
   and the open source software Archy uses with their licenses.
 - **Sort in every view.** A sort button next to the views sorts the folder by

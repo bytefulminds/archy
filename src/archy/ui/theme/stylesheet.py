@@ -209,6 +209,16 @@ _TEMPLATE = """
     QToolButton#crumb:hover {{ background: {_GLASS_STRONG}; color: {TEXT_PRIMARY}; }}
     QToolButton#crumb:disabled {{ color: {TEXT_PRIMARY}; }}
     QLabel#crumbSep {{ color: {TEXT_DISABLED}; }}
+    QToolButton#crumbSep {{
+        background: transparent; color: {TEXT_DISABLED};
+        border: none; border-radius: 6px; padding: 3px 4px;
+    }}
+    QToolButton#crumbSep:hover {{ background: {_GLASS_STRONG}; color: {TEXT_PRIMARY}; }}
+    QToolButton#crumbSep::menu-indicator {{ image: none; width: 0; }}
+    QToolButton#crumbNav {{
+        background: transparent; border: none; border-radius: 6px; padding: 3px;
+    }}
+    QToolButton#crumbNav:hover {{ background: {_GLASS_STRONG}; }}
     QLabel#breadcrumbMuted {{ color: {TEXT_DISABLED}; }}
     QToolButton#crumbClose {{
         background: {_GLASS}; color: {TEXT_SECONDARY};

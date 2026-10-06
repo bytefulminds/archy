@@ -47,6 +47,11 @@ archive by type: images, videos, documents and other files.
 - **Search the whole archive** by name or path with **Ctrl+Shift+F**; the
   results show where each file lives. Double-click one to go there.
 - **Filter the current folder** with **Ctrl+F**.
+- **Back and forward** through the folders you visited with the arrows at the
+  start of the path, the mouse's back and forward buttons, or **Alt+Left** /
+  **Alt+Right** (**Cmd+[** / **Cmd+]** on macOS).
+- **Jump to a folder next to this one:** click a **/** in the path to see the
+  folders at that level.
 - **Sort** by name, type, size or date modified, ascending or descending, with
   the sort button next to the views (in the list view also by clicking a
   column header). Folders always come first, in search results too. Archy
@@ -220,6 +225,7 @@ On macOS, read Cmd for Ctrl.
 | Filter the current folder | Ctrl+F |
 | Find in the previewed text file (click in the preview first) | Ctrl+F |
 | Go up one folder | Backspace |
+| Back / forward | Alt+Left / Alt+Right (Cmd+[ / Cmd+] on macOS), mouse buttons |
 | Extract selection / everything | Ctrl+E / Ctrl+Shift+E |
 | Add files / new folder | Ctrl+Shift+A / Ctrl+Shift+N |
 | Rename / delete | F2 / Delete |
@@ -319,7 +325,7 @@ languages are very welcome.
 - Browse into archives nested inside an archive.
 - More interface languages (German, Polish, Russian, ...): contributions welcome.
 - Rar support on Windows without a separate libarchive install.
-- Breadcrumb dropdowns to jump to sibling folders, and back/forward navigation.
+- Sort by date taken, rating and camera.
 - Office documents: previews for doc, docx, xls and xlsx.
 
 ## Built with

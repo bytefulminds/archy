@@ -394,7 +394,10 @@ inherits from. This keeps each area easy to find and read without a
 - `opening.py` (`OpeningMixin`) - opening/closing archives and the password flow.
   The index is read by `ui/open_worker.py` on a worker thread while
   `ui/busy_overlay.py` shows a spinner over the workspace.
-- `navigation.py` (`NavigationMixin`) - folder navigation and the breadcrumb.
+- `navigation.py` (`NavigationMixin`) - folder navigation and the breadcrumb:
+  back/forward history (folder paths by name, so a reload keeps it; mouse
+  buttons through `MouseNavFilter` on the views' viewports), "/" separators
+  that drop down the sibling folders, and the crumbs of outer archives.
 - `selection.py` (`SelectionMixin`) - selection state and double-click handling.
 - `search.py` (`SearchMixin`) - in-folder and whole-archive search.
 - `editing.py` (`EditingMixin`) - add / delete / rename and drag-drop.

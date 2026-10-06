@@ -904,3 +904,71 @@ def test_music_plays_with_its_details(tmp_path) -> None:  # noqa: ANN001
     assert dict(widget._zx_details.items)["details.duration"] == "0:02"
     assert widget._zx_step is None  # no frame stepping for music
     widget._zx_cleanup()
+
+
+def test_back_forward_mouse_buttons_and_breadcrumb_folders(tmp_path) -> None:  # noqa: ANN001
+    import zipfile
+
+    from PySide6.QtCore import QPointF, Qt
+    from PySide6.QtGui import QMouseEvent
+    from PySide6.QtWidgets import QApplication, QMenu
+
+    from archy.ui import theme
+    from archy.ui.main_window import MainWindow
+
+    archive = tmp_path / "trip.zip"
+    with zipfile.ZipFile(archive, "w") as z:
+        z.writestr("2024/zomer/a.txt", b"a")
+        z.writestr("2024/winter/b.txt", b"b")
+        z.writestr("2025/c.txt", b"c")
+
+    app = _app()
+    theme.apply(app)
+    window = MainWindow()
+    window.resize(1000, 650)
+    window.show()
+    _open(window, archive)
+
+    def where() -> str:
+        return "/".join(node.name for node in window._nav[1:])
+
+    window._enter_folder(window._nav[0].children["2024"])
+    window._enter_folder(window._nav[-1].children["zomer"])
+    window.go_up()
+    assert where() == "2024"
+    window.go_back()
+    assert where() == "2024/zomer"
+    window.go_back()
+    window.go_back()
+    assert where() == ""
+    window.go_back()  # nothing further back
+    assert where() == ""
+    window.go_forward()
+    assert where() == "2024"
+
+    # The mouse's back button, pressed over the file list.
+    viewport = window._table.viewport()
+    press = QMouseEvent(
+        QMouseEvent.Type.MouseButtonPress,
+        QPointF(10, 10),
+        QPointF(10, 10),
+        Qt.MouseButton.BackButton,
+        Qt.MouseButton.BackButton,
+        Qt.KeyboardModifier.NoModifier,
+    )
+    QApplication.sendEvent(viewport, press)
+    assert where() == ""
+
+    # The "/" after 2024 lists its folders; picking one jumps sideways.
+    window._enter_folder(window._nav[0].children["2024"])
+    window._enter_folder(window._nav[-1].children["zomer"])
+    menu = QMenu()
+    window._fill_crumb_menu(menu, 1)
+    names = [action.text() for action in menu.actions()]
+    assert names == ["winter", "zomer"]
+    assert [a.isChecked() for a in menu.actions()] == [False, True]
+    menu.actions()[0].trigger()
+    assert where() == "2024/winter"
+    window.go_back()
+    assert where() == "2024/zomer"
+    window.close()

@@ -385,6 +385,13 @@
     "about.licenses_title": "Licenties",
     "details.artist": "Artiest: {value}",
     "details.album": "Album: {value}",
-    "details.bitrate": "Bitrate: {value}"
+    "details.bitrate": "Bitrate: {value}",
+    "nav.back": "Terug",
+    "nav.forward": "Vooruit",
+    "crumb.subfolders": "Mappen hier",
+    "crumb.more": {
+      "one": "nog {count} map",
+      "other": "nog {count} mappen"
+    }
   }
 }

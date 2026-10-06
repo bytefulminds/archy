@@ -98,6 +98,15 @@ class ActionsMixin:
         close_action.setShortcut(QKeySequence.StandardKey.Close)
         close_action.triggered.connect(self.close_archive)
 
+        back_action = QAction(tr("nav.back"), self)
+        back_action.setShortcuts(QKeySequence.keyBindings(QKeySequence.StandardKey.Back))
+        back_action.triggered.connect(self.go_back)
+        self.addAction(back_action)
+        forward_action = QAction(tr("nav.forward"), self)
+        forward_action.setShortcuts(QKeySequence.keyBindings(QKeySequence.StandardKey.Forward))
+        forward_action.triggered.connect(self.go_forward)
+        self.addAction(forward_action)
+
         self._up_action = QAction(tr("action.up"), self)
         self._up_action.setShortcut(QKeySequence(Qt.Key.Key_Backspace))
         self._up_action.triggered.connect(self.go_up)
