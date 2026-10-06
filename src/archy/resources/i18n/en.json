@@ -382,6 +382,9 @@
     "about.section.third_party": "Third-party software",
     "about.third_party_intro": "Archy is built on the open source software below. Their licenses ask for this mention; the full texts are under Show licenses.",
     "about.show_licenses": "Show licenses",
-    "about.licenses_title": "Licenses"
+    "about.licenses_title": "Licenses",
+    "details.artist": "Artist: {value}",
+    "details.album": "Album: {value}",
+    "details.bitrate": "Bit rate: {value}"
   }
 }

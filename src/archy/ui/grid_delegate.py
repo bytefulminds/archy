@@ -7,7 +7,7 @@ from PySide6.QtWidgets import QStyle, QStyledItemDelegate
 from archy.i18n import tr
 from archy.services.formatting import format_size
 from archy.ui import theme
-from archy.ui.archive_model import CATEGORY_ICON, NODE_ROLE, category_of
+from archy.ui.archive_model import NODE_ROLE, category_of, icon_of
 
 # Soft Depth grid tile:
 #  - a floating rounded card (r-md) with a top-lit glass gradient body;
@@ -103,7 +103,7 @@ class GridDelegate(QStyledItemDelegate):
             self._draw_cover(painter, pixmap, image_rect, top_path)
         else:
             painter.fillPath(top_path, QColor(255, 255, 255, 8))
-            self._draw_center_icon(painter, cat, image_rect, selected)
+            self._draw_center_icon(painter, icon_of(node), image_rect, selected)
 
         if cat == "video" and pixmap is not None and not pixmap.isNull():
             self._draw_play(painter, image_rect)
@@ -159,9 +159,9 @@ class GridDelegate(QStyledItemDelegate):
         painter.drawPixmap(target, scaled, QRect(sx, sy, target.width(), target.height()))
         painter.restore()
 
-    def _draw_center_icon(self, painter, cat: str, rect: QRectF, selected: bool) -> None:  # noqa: ANN001
+    def _draw_center_icon(self, painter, icon_name: str, rect: QRectF, selected: bool) -> None:  # noqa: ANN001, E501
         color = theme.TEXT_SECONDARY if selected else theme.TEXT_DISABLED
-        icon = theme.symbol_icon(CATEGORY_ICON.get(cat, "doc"), self._icon, color)
+        icon = theme.symbol_icon(icon_name, self._icon, color)
         cx = int(rect.center().x() - self._icon / 2)
         cy = int(rect.center().y() - self._icon / 2)
         icon.paint(painter, QRect(cx, cy, self._icon, self._icon))

@@ -4,7 +4,7 @@ import contextlib
 from pathlib import Path
 
 from PySide6.QtCore import QIODevice, QObject, Qt, Signal
-from PySide6.QtGui import QFontDatabase
+from PySide6.QtGui import QFontDatabase, QPixmap
 from PySide6.QtWidgets import (
     QLabel,
     QPlainTextEdit,
@@ -372,7 +372,93 @@ def _dispose_player_async(player: object, audio: object, buffer: object) -> None
             obj.deleteLater()  # type: ignore[attr-defined] - only posts an event
 
 
-def _build_video(name: str, source: bytes | Path | QIODevice) -> QWidget:
+class _AudioStage(QWidget):
+    """What a music file shows instead of a picture: its cover art, or a large
+    note, with the title and the artist under it."""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(24, 24, 24, 12)
+        layout.setSpacing(10)
+        layout.addStretch(1)
+        self._cover = QLabel()
+        self._cover.setObjectName("audioCover")
+        self._cover.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._cover.setPixmap(theme.symbol_icon("music", 96, theme.TEXT_SECONDARY).pixmap(96, 96))
+        self._title = QLabel()
+        self._title.setObjectName("audioTitle")
+        self._title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._title.setWordWrap(True)
+        self._artist = QLabel()
+        self._artist.setObjectName("audioArtist")
+        self._artist.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._artist.setWordWrap(True)
+        layout.addWidget(self._cover)
+        layout.addWidget(self._title)
+        layout.addWidget(self._artist)
+        layout.addStretch(1)
+
+    def show_meta(self, meta, name: str) -> None:  # noqa: ANN001 - QMediaMetaData
+        from PySide6.QtMultimedia import QMediaMetaData
+
+        key = QMediaMetaData.Key
+        title = _meta_text(meta, key.Title) or name.rsplit("/", 1)[-1]
+        artist = _meta_text(meta, key.ContributingArtist) or _meta_text(meta, key.AlbumArtist)
+        album = _meta_text(meta, key.AlbumTitle)
+        self._title.setText(title)
+        self._artist.setText(" · ".join(part for part in (artist, album) if part))
+        for cover_key in (key.CoverArtImage, key.ThumbnailImage):
+            with contextlib.suppress(Exception):
+                image = meta.value(cover_key)
+                if image is not None and not image.isNull():
+                    ratio = self.devicePixelRatioF()
+                    size = int(220 * ratio)
+                    pixmap = QPixmap.fromImage(image).scaled(
+                        size,
+                        size,
+                        Qt.AspectRatioMode.KeepAspectRatio,
+                        Qt.TransformationMode.SmoothTransformation,
+                    )
+                    pixmap.setDevicePixelRatio(ratio)
+                    self._cover.setPixmap(pixmap)
+                    break
+
+
+def _meta_text(meta, key) -> str:  # noqa: ANN001
+    with contextlib.suppress(Exception):
+        value = meta.value(key)
+        if isinstance(value, (list, tuple)):
+            value = ", ".join(str(v) for v in value if v)
+        return str(value).strip() if value else ""
+    return ""
+
+
+def _audio_details(meta) -> file_details.Details:  # noqa: ANN001 - QMediaMetaData
+    from PySide6.QtMultimedia import QMediaFormat, QMediaMetaData
+
+    key = QMediaMetaData.Key
+    items: file_details.Details = []
+    artist = _meta_text(meta, key.ContributingArtist) or _meta_text(meta, key.AlbumArtist)
+    if artist:
+        items.append(("details.artist", artist))
+    album = _meta_text(meta, key.AlbumTitle)
+    if album:
+        items.append(("details.album", album))
+    with contextlib.suppress(Exception):
+        bitrate = int(meta.value(key.AudioBitRate) or 0)
+        if bitrate > 0:
+            items.append(("details.bitrate", f"{round(bitrate / 1000)} kbit/s"))
+    with contextlib.suppress(Exception):
+        codec = meta.value(key.AudioCodec)
+        if codec is not None and codec != QMediaFormat.AudioCodec.Unspecified:
+            items.append(("details.codec", QMediaFormat.audioCodecName(codec)))
+    return items
+
+
+def _build_video(
+    name: str, source: bytes | Path | QIODevice, *, audio_only: bool = False
+) -> QWidget:
     try:
         from PySide6.QtCore import QBuffer, QByteArray, QMetaObject, QSize, Qt, QTimer, QUrl
         from PySide6.QtMultimedia import QAudioOutput, QMediaMetaData, QMediaPlayer
@@ -389,11 +475,16 @@ def _build_video(name: str, source: bytes | Path | QIODevice) -> QWidget:
     layout.setContentsMargins(0, 0, 0, 0)
     layout.setSpacing(10)
 
-    video = QVideoWidget(container)
     player = QMediaPlayer(container)
     audio = QAudioOutput(container)
     player.setAudioOutput(audio)
-    player.setVideoOutput(video)
+    if audio_only:
+        # Music: the cover art (or a note) with title and artist instead of a
+        # picture, and the same controls as a video.
+        video = _AudioStage(container)
+    else:
+        video = QVideoWidget(container)
+        player.setVideoOutput(video)
 
     buffer = None
     if isinstance(source, QIODevice):
@@ -473,6 +564,11 @@ def _build_video(name: str, source: bytes | Path | QIODevice) -> QWidget:
         if player.duration() > 0:
             items.append(("details.duration", file_details.duration(player.duration())))
         meta = player.metaData()
+        if audio_only:
+            video.show_meta(meta, name)
+            items += _audio_details(meta)
+            details.set(items)
+            return
         with contextlib.suppress(Exception):
             size = meta.value(QMediaMetaData.Key.Resolution)
             if size is not None and size.width() > 0:
@@ -560,14 +656,16 @@ def _build_video(name: str, source: bytes | Path | QIODevice) -> QWidget:
             player.durationChanged.disconnect()
             player.playbackStateChanged.disconnect()
             player.metaDataChanged.disconnect()
-        with contextlib.suppress(Exception):
-            player.setVideoOutput(None)  # safe; frees the doomed QVideoWidget
+        if not audio_only:
+            with contextlib.suppress(Exception):
+                player.setVideoOutput(None)  # safe; frees the doomed QVideoWidget
         _dispose_player_async(player, audio, buffer)
 
     container._video_player = player  # type: ignore[attr-defined]
     container._video_audio = audio  # type: ignore[attr-defined]
     container._zx_toggle = toggle  # type: ignore[attr-defined]
-    container._zx_step = step_frame  # type: ignore[attr-defined]
+    # The wheel steps frames in a paused video; music has no frames.
+    container._zx_step = None if audio_only else step_frame  # type: ignore[attr-defined]
     container._zx_cleanup = cleanup  # type: ignore[attr-defined]
 
     layout.addWidget(video, stretch=1)
@@ -590,6 +688,8 @@ def build_preview_widget(name: str, data: bytes) -> QWidget:
         return _build_pdf(name, data)
     if kind is PreviewKind.VIDEO:
         return _build_video(name, data)
+    if kind is PreviewKind.AUDIO:
+        return _build_video(name, data, audio_only=True)
     return _message(tr("preview.unsupported", name=name))
 
 
@@ -602,6 +702,8 @@ def build_preview_widget_from_device(name: str, device: QIODevice) -> QWidget:
         return _build_pdf(name, device)
     if kind is PreviewKind.VIDEO:
         return _build_video(name, device)
+    if kind is PreviewKind.AUDIO:
+        return _build_video(name, device, audio_only=True)
     return _message(tr("preview.unsupported", name=name))
 
 
@@ -616,4 +718,6 @@ def build_preview_widget_from_path(name: str, path: str | Path) -> QWidget:
         return _build_pdf(name, source)
     if kind is PreviewKind.VIDEO:
         return _build_video(name, source)
+    if kind is PreviewKind.AUDIO:
+        return _build_video(name, source, audio_only=True)
     return _message(tr("preview.unsupported", name=name))

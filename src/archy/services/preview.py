@@ -12,6 +12,7 @@ class PreviewKind(Enum):
     IMAGE = auto()
     PDF = auto()
     VIDEO = auto()
+    AUDIO = auto()
     UNSUPPORTED = auto()
 
 
@@ -100,6 +101,19 @@ _IMAGE_EXT = {
 }
 _PDF_EXT = {".pdf"}
 _VIDEO_EXT = {".mp4", ".mkv", ".mov", ".avi", ".webm", ".m4v", ".wmv", ".flv"}
+_AUDIO_EXT = {
+    ".mp3",
+    ".flac",
+    ".wav",
+    ".m4a",
+    ".aac",
+    ".ogg",
+    ".oga",
+    ".opus",
+    ".wma",
+    ".aif",
+    ".aiff",
+}
 
 
 def kind_for_name(name: str) -> PreviewKind:
@@ -113,4 +127,6 @@ def kind_for_name(name: str) -> PreviewKind:
         return PreviewKind.PDF
     if ext in _VIDEO_EXT:
         return PreviewKind.VIDEO
+    if ext in _AUDIO_EXT:
+        return PreviewKind.AUDIO
     return PreviewKind.UNSUPPORTED

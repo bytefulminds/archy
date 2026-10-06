@@ -88,6 +88,10 @@ while paused. In a 7z made with *Store* a video starts at once and is read
 while it plays, however large it is. Thumbnails of portrait phone videos stand
 upright.
 
+**Music.** MP3, FLAC, WAV, M4A/AAC, Ogg, Opus, WMA and AIFF play in the
+preview with the same controls as a video, showing the cover art, title and
+artist when the file has them.
+
 **PDF.** Scroll through the pages and zoom.
 
 **Text and code.** The encoding is detected automatically (UTF-8, UTF-16,

@@ -417,7 +417,7 @@ class PreviewMixin:
         # one already in the folder buffer only needs the player's copy. Too
         # big: the temp-file fallback (if on) or a "too large" message, never a
         # machine that runs out of memory.
-        if kind is PreviewKind.VIDEO:
+        if kind in (PreviewKind.VIDEO, PreviewKind.AUDIO):
             buffered = (
                 node is not None
                 and node.entry is not None
@@ -528,13 +528,15 @@ class PreviewMixin:
             self._open_editable_text(node)
             return
 
-        if kind in (PreviewKind.VIDEO, PreviewKind.PDF) and self._preview_streamed(
-            node, kind, request_id
-        ):
+        if kind in (
+            PreviewKind.VIDEO,
+            PreviewKind.AUDIO,
+            PreviewKind.PDF,
+        ) and self._preview_streamed(node, kind, request_id):
             return
 
         too_big = kind is not PreviewKind.TEXT and node.size > self._media_size_limit(kind, node)
-        from_disk = kind in (PreviewKind.PDF, PreviewKind.VIDEO) and (
+        from_disk = kind in (PreviewKind.PDF, PreviewKind.VIDEO, PreviewKind.AUDIO) and (
             self._temp.mode() == "disk"  # Always use temporary files
             or (too_big and self._temp.enabled())  # To disk when memory is tight
         )

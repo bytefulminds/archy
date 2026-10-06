@@ -93,8 +93,9 @@ third-party components with their licenses, and the notices text built from
 ### services/ - stateless helpers
 
 - `formatting.py` - human sizes, dates, ratios.
-- `preview.py` - `PreviewKind` (TEXT / IMAGE / PDF / VIDEO / UNSUPPORTED) and
-  `kind_for_name` (by extension).
+- `preview.py` - `PreviewKind` (TEXT / IMAGE / PDF / VIDEO / AUDIO /
+  UNSUPPORTED) and `kind_for_name` (by extension). Music uses the video
+  player without a picture (`providers._AudioStage`: cover art, title, artist).
 - `providers.py` - builds the actual Qt preview widget from bytes
   (`build_preview_widget`) or from a temp-file path
   (`build_preview_widget_from_path`, used by the memory-pressure fallback). This

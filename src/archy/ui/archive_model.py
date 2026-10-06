@@ -59,6 +59,15 @@ CATEGORY_ICON = {
 }
 
 
+def icon_of(node: TreeNode) -> str:
+    """The icon for a node in the lists and tiles: by category, with a note
+    for music (which the sidebar counts under Other)."""
+    cat = category_of(node)
+    if cat == "other" and kind_for_name(node.name) is PreviewKind.AUDIO:
+        return "music"
+    return CATEGORY_ICON.get(cat, "doc")
+
+
 def category_of(node: TreeNode) -> str:
     """Coarse category for the sidebar filter: dir/image/video/document/other."""
     if node.is_dir:
@@ -184,7 +193,7 @@ class ArchiveTableModel(QAbstractTableModel):
         if role == Qt.ItemDataRole.DecorationRole and col == _NAME:
             cat = category_of(node)
             color = theme.ACCENT if cat == "dir" else theme.TEXT_SECONDARY
-            return theme.symbol_icon(CATEGORY_ICON.get(cat, "insert_drive_file"), 18, color)
+            return theme.symbol_icon(icon_of(node), 18, color)
 
         return None
 

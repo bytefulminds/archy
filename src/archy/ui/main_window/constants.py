@@ -60,4 +60,10 @@ _MEDIA_KINDS = (PreviewKind.IMAGE, PreviewKind.PDF, PreviewKind.VIDEO)
 # Kinds the prev/next arrows step between. Fullscreen stays limited to
 # _MEDIA_KINDS, but the arrows above the preview also page through text
 # documents (they have no on-image side chevrons of their own).
-_NAV_KINDS = (PreviewKind.TEXT, PreviewKind.IMAGE, PreviewKind.PDF, PreviewKind.VIDEO)
+_NAV_KINDS = (
+    PreviewKind.TEXT,
+    PreviewKind.IMAGE,
+    PreviewKind.PDF,
+    PreviewKind.VIDEO,
+    PreviewKind.AUDIO,
+)

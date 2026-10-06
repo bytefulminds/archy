@@ -875,3 +875,32 @@ def test_closing_an_archive_clears_the_status_strip(tmp_path) -> None:  # noqa: 
     assert not window._thumb_bar.isVisible() and not window._thumb_label.isVisible()
     assert window._status_msg.text() == "Ready"
     window.close()
+
+
+def test_music_plays_with_its_details(tmp_path) -> None:  # noqa: ANN001
+    import io
+    import time
+    import wave
+
+    from archy.services.preview import PreviewKind, kind_for_name
+    from archy.services.providers import build_preview_widget
+
+    assert kind_for_name("song.FLAC") is PreviewKind.AUDIO
+    app = _app()
+    out = io.BytesIO()
+    with wave.open(out, "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(8000)
+        w.writeframes(b"\x00\x10" * 8000 * 2)  # two seconds
+    widget = build_preview_widget("song.wav", out.getvalue())
+    widget.resize(400, 300)
+    widget.show()
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline and widget._video_player.duration() <= 0:
+        app.processEvents()
+        time.sleep(0.01)
+    app.processEvents()
+    assert dict(widget._zx_details.items)["details.duration"] == "0:02"
+    assert widget._zx_step is None  # no frame stepping for music
+    widget._zx_cleanup()

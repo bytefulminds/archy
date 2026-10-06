@@ -382,6 +382,9 @@
     "about.section.third_party": "Software van derden",
     "about.third_party_intro": "Archy is gebouwd op de opensourcesoftware hieronder. Hun licenties vragen om deze vermelding; de volledige teksten staan onder Licenties tonen.",
     "about.show_licenses": "Licenties tonen",
-    "about.licenses_title": "Licenties"
+    "about.licenses_title": "Licenties",
+    "details.artist": "Artiest: {value}",
+    "details.album": "Album: {value}",
+    "details.bitrate": "Bitrate: {value}"
   }
 }

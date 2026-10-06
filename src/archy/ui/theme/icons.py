@@ -34,6 +34,7 @@ _ICON_SVG: dict[str, str] = {
     "compact": '<path class="ico" d="M4 6.5h9M4 12h9M4 17.5h9"/><circle class="ico" cx="19" cy="6.5" r="1"/><circle class="ico" cx="19" cy="12" r="1"/><circle class="ico" cx="19" cy="17.5" r="1"/>',  # noqa: E501
     "thumb": '<rect class="ico" x="4" y="4" width="7" height="7" rx="1.3"/><rect class="ico" x="13" y="4" width="7" height="7" rx="1.3"/><rect class="ico" x="4" y="13" width="7" height="7" rx="1.3"/><rect class="ico" x="13" y="13" width="7" height="7" rx="1.3"/>',  # noqa: E501
     "thumb_lg": '<rect class="ico" x="3.5" y="3.5" width="8.5" height="8.5" rx="1.3"/><rect class="ico" x="12" y="3.5" width="8.5" height="8.5" rx="1.3"/><rect class="ico" x="3.5" y="12" width="8.5" height="8.5" rx="1.3"/><rect class="ico" x="12" y="12" width="8.5" height="8.5" rx="1.3"/>',  # noqa: E501
+    "music": '<path class="ico" d="M9 17.5V6.2l10-2v11.3"/><circle class="ico" cx="6.5" cy="17.5" r="2.5"/><circle class="ico" cx="16.5" cy="15.5" r="2.5"/>',  # noqa: E501
     "sort": '<path class="ico" d="M4 7h16M7 12h10M10 17h4"/>',
     "warning": '<path class="ico" d="M12 4.2 20.6 19H3.4z"/><path class="ico" d="M12 10v4.4"/><circle cx="12" cy="16.9" r="1" fill="currentColor"/>',  # noqa: E501
     "info": '<circle class="ico" cx="12" cy="12" r="8.2"/><path class="ico" d="M12 11v5.2"/><circle cx="12" cy="8.3" r="1" fill="currentColor"/>',  # noqa: E501

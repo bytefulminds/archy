@@ -448,6 +448,10 @@ _TEMPLATE = """
         selection-color: {TEXT_PRIMARY};
         outline: none;
     }}
+    QLabel#audioTitle {{
+        color: {TEXT_PRIMARY}; font-family: "{DISPLAY_FAMILY}"; font-size: 16px; font-weight: 600;
+    }}
+    QLabel#audioArtist {{ color: {TEXT_SECONDARY}; font-size: 12px; }}
     QLabel#aboutName {{
         color: {TEXT_PRIMARY}; font-family: "{DISPLAY_FAMILY}"; font-size: 20px; font-weight: 600;
     }}
