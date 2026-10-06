@@ -16,9 +16,16 @@ class SelectionMixin:
     Mixin for :class:`MainWindow`; relies on attributes/methods defined there.
     """
 
+    def _selected_row_indexes(self) -> list:
+        """One index per selected row. The thumbnail and compact views select
+        just the item (column 0), the details table whole rows; selectedRows()
+        only counts the latter, so it reported nothing for a click in a grid."""
+        rows = sorted({index.row() for index in self._selection.selectedIndexes()})
+        return [self._proxy.index(row, 0) for row in rows]
+
     def _selected_nodes(self) -> list[TreeNode]:
         nodes: list[TreeNode] = []
-        for index in self._selection.selectedRows():
+        for index in self._selected_row_indexes():
             node = self._node_at(index)
             if node is not None:
                 nodes.append(node)
@@ -39,7 +46,7 @@ class SelectionMixin:
         self._req_id += 1  # cancel any in-flight preview read
         self._update_edit_actions()
 
-        rows = self._selection.selectedRows()
+        rows = self._selected_row_indexes()
         multi = len(rows) > 1
         if multi:
             # Multi-select: summarise in the status strip; the preview follows the
@@ -47,8 +54,12 @@ class SelectionMixin:
             self._status_selection.setText(
                 tr("status.selected_of", count=len(rows), total=self._model.rowCount())
             )
-        elif not rows and not self._selection.currentIndex().isValid():
-            self._status_selection.setText(tr("status.no_selection"))
+        elif not rows:
+            # Nothing selected any more (a click on empty space, Ctrl+click on
+            # the last one): nothing of the old file stays in the status strip
+            # or the preview, even though Qt keeps a "current" item.
+            self._show_nothing_selected()
+            return
 
         # The preview always follows the current item (the one just clicked), not
         # the whole multi-selection.
@@ -79,6 +90,12 @@ class SelectionMixin:
             if not multi:
                 self._status_selection.setText(tr("status.selected_one", name=node.name))
             self._preview_node(node, self._req_id)
+
+    def _show_nothing_selected(self) -> None:
+        self._status_selection.setText(tr("status.no_selection"))
+        self._set_status(tr("status.ready"))
+        self._info_button.setEnabled(False)
+        self._show_placeholder(tr("preview.select_file"))
 
     def _on_double_clicked(self, proxy_index: QModelIndex) -> None:
         node = self._node_at(proxy_index)

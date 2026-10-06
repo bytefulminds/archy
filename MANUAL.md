@@ -51,7 +51,8 @@ archive by type: images, videos, documents and other files.
   start of the path, the mouse's back and forward buttons, or **Alt+Left** /
   **Alt+Right** (**Cmd+[** / **Cmd+]** on macOS).
 - **Jump to a folder next to this one:** click a **/** in the path to see the
-  folders at that level.
+  folders at that level (20 at a time); type to narrow the list down, use the
+  arrow keys and Enter, or click one.
 - **Sort** by name, type, size or date modified, ascending or descending, with
   the sort button next to the views (in the list view also by clicking a
   column header). Folders always come first, in search results too. Archy

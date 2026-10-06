@@ -26,8 +26,9 @@ next release.
 - **Back and forward.** Arrows at the start of the path, the mouse's back and
   forward buttons and Alt+Left / Alt+Right (Cmd+[ / Cmd+] on macOS) go back and
   forward through the folders you visited.
-- **Folders next to this one.** Click a / in the path to jump to a folder at
-  that level.
+- **Folders next to this one.** Click a / in the path for the folders at that
+  level: a short list (20 at most) with a field to type in, so hundreds of
+  folders stay manageable.
 - **Archives inside an archive (experimental).** Double-click a zip, 7z or tar
   inside the archive to open it like a folder: from memory, read-only, with
   the way back in the path.
@@ -48,6 +49,8 @@ next release.
 
 ### Fixed
 
+- After a click on empty space, or going to another folder, the status strip
+  and the preview still showed the file that was selected before.
 - The icon on the active view button was hard to see on its teal background.
 - Opening another archive could show thumbnails from the previous one for
   files with the same path.

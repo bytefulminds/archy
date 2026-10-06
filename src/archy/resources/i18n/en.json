@@ -394,10 +394,6 @@
     "nav.back": "Back",
     "nav.forward": "Forward",
     "crumb.subfolders": "Folders here",
-    "crumb.more": {
-      "one": "{count} more folder",
-      "other": "{count} more folders"
-    },
     "nested.title": "Archive in an archive",
     "nested.too_big": "{name} ({size}) is too large to open inside the archive: it is opened in memory. Extract it and open it on its own.",
     "nested.failed": "This archive could not be opened: {error}",
@@ -405,6 +401,15 @@
     "nested.back_to": "Back to {name}",
     "nested.badge": "Beta",
     "nested.badge_tip": "Archives inside an archive are still being tested: they open from memory and read-only.",
-    "lock.nested_text": "An archive inside another archive opens read-only (experimental). Extract it to change it."
+    "lock.nested_text": "An archive inside another archive opens read-only (experimental). Extract it to change it.",
+    "crumb.filter": {
+      "one": "Filter {count} folder...",
+      "other": "Filter {count} folders..."
+    },
+    "crumb.more_filter": {
+      "one": "{count} more, type to narrow down",
+      "other": "{count} more, type to narrow down"
+    },
+    "crumb.no_match": "No folder matches"
   }
 }

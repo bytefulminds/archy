@@ -9,7 +9,6 @@ from PySide6.QtCore import (
 )
 from PySide6.QtWidgets import (
     QLabel,
-    QMenu,
     QSizePolicy,
     QToolButton,
 )
@@ -25,9 +24,6 @@ from archy.ui.main_window.constants import (
     _CATEGORIES,
 )
 from archy.ui.settings import view_labels
-
-# Folders listed in a breadcrumb dropdown at most (a backup can have thousands).
-_CRUMB_MENU_MAX = 400
 
 
 class MouseNavFilter(QObject):
@@ -138,6 +134,11 @@ class NavigationMixin:
             self._warm_folder()
         self._record_history()
         self._rebuild_breadcrumb()
+        # Another folder: the model reset cleared the selection without a
+        # selection signal, so reset what still described the old one.
+        self._status_selection.setText(tr("status.no_selection"))
+        self._set_status(tr("status.ready"))
+        self._info_button.setEnabled(False)
         self._show_placeholder(tr("preview.select_file"))
         self._update_counts()
         self._update_nav_state()
@@ -229,38 +230,30 @@ class NavigationMixin:
             self._breadcrumb_layout.addWidget(button)
 
     def _crumb_menu_button(self, depth: int) -> QToolButton:
-        """A "/" between crumbs that drops down the subfolders of the folder
-        at ``depth``, to jump sideways."""
+        """A "/" between crumbs that opens the folders of the folder at
+        ``depth`` (with a field to type in), to jump sideways."""
         button = QToolButton()
         button.setObjectName("crumbSep")
         button.setText("/")
         button.setToolTip(tr("crumb.subfolders"))
-        button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         button.setCursor(Qt.CursorShape.PointingHandCursor)
-        menu = QMenu(button)
-        menu.aboutToShow.connect(lambda m=menu, d=depth: self._fill_crumb_menu(m, d))
-        button.setMenu(menu)
+        button.clicked.connect(lambda _c=False, b=button, d=depth: self._open_folder_picker(b, d))
         return button
 
-    def _fill_crumb_menu(self, menu: QMenu, depth: int) -> None:
-        menu.clear()
+    def _folder_picker(self, depth: int):  # noqa: ANN202 - FolderPicker | None
+        from archy.ui.folder_picker import FolderPicker
+
         if depth >= len(self._nav):
-            return
+            return None
         parent = self._nav[depth]
         current = self._nav[depth + 1].name if depth + 1 < len(self._nav) else None
-        folders = sorted(
-            (child for child in parent.children.values() if child.is_dir),
-            key=lambda node: node.name.casefold(),
-        )
-        icon = theme.symbol_icon("folder", 16, theme.ACCENT)
-        for node in folders[:_CRUMB_MENU_MAX]:
-            action = menu.addAction(icon, node.name)
-            action.setCheckable(True)
-            action.setChecked(node.name == current)
-            action.triggered.connect(lambda _c=False, d=depth, n=node: self._jump_to(d, n))
-        if len(folders) > _CRUMB_MENU_MAX:
-            more = menu.addAction(tr("crumb.more", count=len(folders) - _CRUMB_MENU_MAX))
-            more.setEnabled(False)
+        folders = [child for child in parent.children.values() if child.is_dir]
+        return FolderPicker(folders, current, lambda node, d=depth: self._jump_to(d, node), self)
+
+    def _open_folder_picker(self, button: QToolButton, depth: int) -> None:
+        picker = self._folder_picker(depth)
+        if picker is not None:
+            picker.popup(button.mapToGlobal(button.rect().bottomLeft()))
 
     def _jump_to(self, depth: int, node: TreeNode) -> None:
         del self._nav[depth + 1 :]

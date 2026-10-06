@@ -220,6 +220,20 @@ _TEMPLATE = """
         border: 1px solid {SECONDARY}; border-radius: 8px;
         padding: 1px 7px; font-size: 10px; font-weight: 600;
     }}
+    QFrame#folderPicker {{
+        background: {OVERLAY}; border: 1px solid {BORDER}; border-radius: 10px;
+    }}
+    QLineEdit#folderPickerField {{
+        background: rgba(255, 255, 255, 0.05); border: 1px solid {_EDGE_SOFT};
+        border-radius: 8px; padding: 5px 8px; color: {TEXT_PRIMARY};
+    }}
+    QListWidget#folderPickerList {{
+        background: transparent; border: none; outline: none; color: {TEXT_PRIMARY};
+    }}
+    QListWidget#folderPickerList::item {{ padding: 4px 6px; border-radius: 6px; }}
+    QListWidget#folderPickerList::item:selected {{ background: {SELECTION_BG}; }}
+    QListWidget#folderPickerList::item:hover {{ background: {_GLASS_STRONG}; }}
+    QLabel#folderPickerMore {{ color: {TEXT_SECONDARY}; font-size: 11px; padding: 0 4px 2px; }}
     QToolButton#crumbNav {{
         background: transparent; border: none; border-radius: 6px; padding: 3px;
     }}
