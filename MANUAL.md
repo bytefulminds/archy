@@ -93,6 +93,11 @@ resolution, upright, with the camera details. Photoshop files (PSD) show their
 flattened image, as saved with "Maximize compatibility" (Photoshop's default),
 or else their thumbnail.
 
+**Slideshow.** **F5** or the play button under a photo shows the photos of the
+folder one after another, full screen. **Space** pauses and continues, the
+arrow keys go back and forward, **Esc** stops. Set the time per photo under
+*Settings > General*.
+
 **Video.** Play and pause with **Space**, jump 10 seconds back or forward, drag
 the seek bar or click on it, and step frame by frame with the scroll wheel
 while paused. In a 7z made with *Store* a video starts at once and is read
@@ -238,6 +243,7 @@ On macOS, read Cmd for Ctrl.
 | Copy the path inside the archive | Ctrl+Shift+C |
 | Save changes | Ctrl+S |
 | Full screen preview | F11 |
+| Slideshow of the folder's photos (Space pauses) | F5 |
 | Play or pause a video | Space |
 | Step one frame (paused video) | Scroll wheel |
 | Settings | Ctrl+, |

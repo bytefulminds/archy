@@ -467,6 +467,11 @@ _TEMPLATE = """
         color: {TEXT_PRIMARY}; font-family: "{DISPLAY_FAMILY}"; font-size: 16px; font-weight: 600;
     }}
     QLabel#audioArtist {{ color: {TEXT_SECONDARY}; font-size: 12px; }}
+    QLabel#fullscreenToast {{
+        background: rgba(10, 14, 18, 0.78); color: {TEXT_PRIMARY};
+        border: 1px solid {_EDGE_STRONG}; border-radius: 14px;
+        padding: 8px 16px; font-size: 13px;
+    }}
     QLabel#aboutName {{
         color: {TEXT_PRIMARY}; font-family: "{DISPLAY_FAMILY}"; font-size: 20px; font-weight: 600;
     }}

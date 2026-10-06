@@ -20,6 +20,9 @@ next release.
   thumbnail when that cannot be read.
 - **Music.** MP3, FLAC, WAV, M4A/AAC, Ogg, Opus, WMA and AIFF play in the
   preview, with cover art, title, artist and album.
+- **Slideshow.** F5 or the play button under a photo shows the folder's photos
+  full screen, one after another; Space pauses, the time per photo is set in
+  Settings.
 - **Back and forward.** Arrows at the start of the path, the mouse's back and
   forward buttons and Alt+Left / Alt+Right (Cmd+[ / Cmd+] on macOS) go back and
   forward through the folders you visited.

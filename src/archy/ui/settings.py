@@ -42,6 +42,7 @@ _DEFAULTS = {
     "ui/language": "auto",  # "auto" (system language, else English) | a code ("nl")
     "view/start": 3,  # Large thumbnails
     "view/compact_density": False,
+    "slideshow/seconds": 4,
     # Sort order of every view: a column of the details table (0 Name, 1 Size,
     # 2 Compressed, 3 Ratio, 4 Type, 5 Modified); folders always come first.
     "view/sort_column": 0,
@@ -120,6 +121,10 @@ class Settings:
     @property
     def sort_descending(self) -> bool:
         return self._get_bool("view/sort_descending")
+
+    @property
+    def slideshow_seconds(self) -> int:
+        return max(1, min(60, self._get_int("slideshow/seconds")))
 
     @property
     def compact_density(self) -> bool:

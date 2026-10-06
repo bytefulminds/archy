@@ -94,6 +94,11 @@ class ActionsMixin:
         self._fullscreen_action.setEnabled(False)
         self.addAction(self._fullscreen_action)
 
+        slideshow_action = QAction(tr("slideshow.start"), self)
+        slideshow_action.setShortcut(QKeySequence(Qt.Key.Key_F5))
+        slideshow_action.triggered.connect(self.start_slideshow)
+        self.addAction(slideshow_action)
+
         close_action = QAction(tr("action.close"), self)
         close_action.setShortcut(QKeySequence.StandardKey.Close)
         close_action.triggered.connect(self.close_archive)

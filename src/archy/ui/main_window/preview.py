@@ -188,12 +188,14 @@ class PreviewMixin:
         full = self._stage_pill_button(
             "fullscreen", tr("preview.fullscreen"), self.toggle_fullscreen
         )
+        slideshow = self._stage_pill_button("play", tr("slideshow.start"), self.start_slideshow)
         row.addWidget(zoom_out)
         row.addWidget(self._stage_zoom_val)
         row.addWidget(zoom_in)
         row.addWidget(divider)
         row.addWidget(rotate)
         row.addWidget(full)
+        row.addWidget(slideshow)
 
         self._stage_overlay_widgets = (
             self._stage_nav_prev,
@@ -453,31 +455,87 @@ class PreviewMixin:
             return
         self._req_id += 1  # ignore any pending preview load while fullscreen
         self._preview_layout.removeWidget(widget)
-        self._fs_window = _FullscreenWindow(widget, self._exit_fullscreen, self._navigate_media)
+        self._fs_window = _FullscreenWindow(
+            widget, self._exit_fullscreen, self._navigate_by_hand, self._toggle_slideshow
+        )
         self._fs_window.showFullScreen()
 
-    def _navigate_media(self, step: int) -> None:
+    def _navigate_media(self, step: int, kinds=_NAV_KINDS, *, wrap: bool = False) -> bool:  # noqa: ANN001
+        """Select the previous/next file of ``kinds`` in the list; with
+        ``wrap`` past the end it starts again at the other end. False when
+        there is none."""
         rows = self._proxy.rowCount()
         current = self._selection.currentIndex()
         row = current.row() if current.isValid() else -1
         r = row
-        while True:
+        for _ in range(rows + 1):
             r += step
             if r < 0 or r >= rows:
-                return  # no more previewable files in this direction
+                if not wrap or rows == 0:
+                    return False  # no more previewable files in this direction
+                r = 0 if step > 0 else rows - 1
+            if r == row:
+                return False  # around once: nothing else of that kind
             index = self._proxy.index(r, 0)
             node = self._node_at(index)
-            if node is not None and not node.is_dir and kind_for_name(node.name) in _NAV_KINDS:
+            if node is not None and not node.is_dir and kind_for_name(node.name) in kinds:
                 self._selection.setCurrentIndex(
                     index,
                     QItemSelectionModel.SelectionFlag.ClearAndSelect
                     | QItemSelectionModel.SelectionFlag.Rows,
                 )  # drives the preview (into fullscreen if active)
                 self._current_view().scrollTo(index)
-                return
+                return True
+        return False
+
+    # ----------------------------------------------------------- slideshow
+    def _navigate_by_hand(self, step: int) -> None:
+        """Left/Right in full screen; restarts the slideshow's clock."""
+        self._navigate_media(step)
+        timer = getattr(self, "_slideshow_timer", None)
+        if timer is not None and timer.isActive():
+            timer.start()
+
+    def start_slideshow(self) -> None:
+        """Show the photos of the folder one after another, full screen."""
+        if self._req_kind is not PreviewKind.IMAGE and self._fs_window is None:
+            return
+        if self._fs_window is None:
+            self.toggle_fullscreen()
+        if self._fs_window is None:
+            return
+        timer = getattr(self, "_slideshow_timer", None)
+        if timer is None:
+            timer = QTimer(self)
+            timer.timeout.connect(self._slideshow_step)
+            self._slideshow_timer = timer
+        seconds = self._settings.slideshow_seconds
+        timer.start(seconds * 1000)
+        self._fs_window.show_toast(tr("slideshow.started", seconds=seconds))
+
+    def _toggle_slideshow(self) -> bool:
+        """Space in full screen: start or pause the slideshow (photos only;
+        a video keeps Space for play/pause)."""
+        timer = getattr(self, "_slideshow_timer", None)
+        if timer is not None and timer.isActive():
+            timer.stop()
+            if self._fs_window is not None:
+                self._fs_window.show_toast(tr("slideshow.paused"))
+            return True
+        if self._req_kind is PreviewKind.IMAGE:
+            self.start_slideshow()
+            return True
+        return False
+
+    def _slideshow_step(self) -> None:
+        if self._fs_window is None or not self._navigate_media(1, (PreviewKind.IMAGE,), wrap=True):
+            self._slideshow_timer.stop()
 
     def _exit_fullscreen(self, widget: QWidget) -> None:
         self._fs_window = None
+        timer = getattr(self, "_slideshow_timer", None)
+        if timer is not None:
+            timer.stop()
         full_bleed = self._req_kind in (PreviewKind.IMAGE, PreviewKind.PDF)
         self._set_preview_widget(widget, full_bleed=full_bleed)
 

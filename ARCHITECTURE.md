@@ -393,7 +393,9 @@ inherits from. This keeps each area easy to find and read without a
 - `file_panel.py` (`FilePanelMixin`) - the file list (table / compact / grid)
   and the bottom status strip.
 - `preview.py` (`PreviewMixin`) - the preview pane: media chrome, loading
-  states, and displaying each file kind.
+  states, displaying each file kind, and the full-screen slideshow (a timer
+  that steps to the next photo, wrapping; Space in `FullscreenWindow` toggles
+  it).
 - `actions.py` (`ActionsMixin`) - the `QAction`s and keyboard shortcuts.
 - `opening.py` (`OpeningMixin`) - opening/closing archives and the password flow.
   The index is read by `ui/open_worker.py` on a worker thread while

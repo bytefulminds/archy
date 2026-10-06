@@ -877,6 +877,64 @@ def test_closing_an_archive_clears_the_status_strip(tmp_path) -> None:  # noqa: 
     window.close()
 
 
+def _png(color: str) -> bytes:
+    from PySide6.QtCore import QBuffer, QByteArray
+    from PySide6.QtGui import QColor, QImage
+
+    image = QImage(64, 48, QImage.Format.Format_RGB32)
+    image.fill(QColor(color))
+    data = QByteArray()
+    buffer = QBuffer(data)
+    buffer.open(QBuffer.OpenModeFlag.WriteOnly)
+    image.save(buffer, "PNG")
+    return bytes(data)
+
+
+def test_slideshow_steps_through_the_photos_full_screen_and_wraps(tmp_path) -> None:  # noqa: ANN001
+    import time
+    import zipfile
+
+    from archy.ui import theme
+    from archy.ui.main_window import MainWindow
+
+    archive = tmp_path / "photos.zip"
+    with zipfile.ZipFile(archive, "w") as z:
+        z.writestr("a.png", _png("#aa0000"))
+        z.writestr("b.png", _png("#00aa00"))
+        z.writestr("notes.txt", b"skipped by the slideshow")
+        z.writestr("c.png", _png("#0000aa"))
+
+    app = _app()
+    theme.apply(app)
+    window = MainWindow()
+    window.resize(900, 600)
+    window.show()
+    _open(window, archive)
+    window._select_path("a.png")
+    deadline = time.monotonic() + 5
+    while not window._fullscreenable and time.monotonic() < deadline:
+        app.processEvents()  # the photo is shown
+    seen = []
+    window.start_slideshow()
+    assert window._fs_window is not None and window._slideshow_timer.isActive()
+    window._slideshow_timer.setInterval(60)  # a fast slideshow for the test
+
+    deadline = time.monotonic() + 5
+    while len(seen) < 4 and time.monotonic() < deadline:
+        app.processEvents()
+        node = window._node_at(window._selection.currentIndex())
+        if node is not None and (not seen or seen[-1] != node.name):
+            seen.append(node.name)
+        time.sleep(0.005)
+    assert seen[:4] == ["a.png", "b.png", "c.png", "a.png"]  # no text file; wraps around
+
+    assert window._toggle_slideshow() and not window._slideshow_timer.isActive()  # Space
+    window._fs_window.close()
+    app.processEvents()
+    assert window._fs_window is None
+    window.close()
+
+
 def test_music_plays_with_its_details(tmp_path) -> None:  # noqa: ANN001
     import io
     import time

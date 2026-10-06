@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import contextlib
 
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QFrame, QVBoxLayout, QWidget
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtWidgets import QFrame, QLabel, QVBoxLayout, QWidget
 
 from archy.i18n import tr
 
@@ -16,15 +16,37 @@ class FullscreenWindow(QWidget):
     """Shows one preview widget fullscreen. Esc/F11 exits (returning the current
     content); Left/Right ask the window to show the previous/next file."""
 
-    def __init__(self, content: QWidget, on_exit, on_navigate) -> None:  # noqa: ANN001
+    def __init__(self, content: QWidget, on_exit, on_navigate, on_space=None) -> None:  # noqa: ANN001
         super().__init__()
         self._content = content
         self._on_exit = on_exit
         self._on_navigate = on_navigate
+        self._on_space = on_space  # () -> bool: handled (the slideshow)
         self.setWindowTitle(tr("window.fullscreen_title"))
         self._layout = QVBoxLayout(self)
         self._layout.setContentsMargins(0, 0, 0, 0)
         self._layout.addWidget(content)
+        # A short message over the picture (slideshow started / paused).
+        self._toast = QLabel(self)
+        self._toast.setObjectName("fullscreenToast")
+        self._toast.hide()
+        self._toast_timer = QTimer(self)
+        self._toast_timer.setSingleShot(True)
+        self._toast_timer.timeout.connect(self._toast.hide)
+
+    def show_toast(self, text: str, ms: int = 1800) -> None:
+        self._toast.setText(text)
+        self._toast.adjustSize()
+        self._toast.move(
+            (self.width() - self._toast.width()) // 2, self.height() - self._toast.height() - 48
+        )
+        self._toast.show()
+        self._toast.raise_()
+        self._toast_timer.start(ms)
+
+    @property
+    def content(self) -> QWidget:
+        return self._content
 
     def set_content(self, widget: QWidget) -> None:
         old = self._content
@@ -38,6 +60,7 @@ class FullscreenWindow(QWidget):
         old.deleteLater()
         self._content = widget
         self._layout.addWidget(widget)
+        self._toast.raise_()
 
     def keyPressEvent(self, event) -> None:  # noqa: ANN001, N802 - Qt override
         if event.key() in (Qt.Key.Key_Escape, Qt.Key.Key_F11):
@@ -46,6 +69,8 @@ class FullscreenWindow(QWidget):
             self._on_navigate(-1)
         elif event.key() == Qt.Key.Key_Right:
             self._on_navigate(1)
+        elif event.key() == Qt.Key.Key_Space and self._on_space is not None and self._on_space():
+            event.accept()
         else:
             super().keyPressEvent(event)
 
