@@ -184,6 +184,8 @@ Open the settings with the gear in the top bar or **Ctrl+,**:
   and whether to remember the window size and position.
 - **Temporary files:** the work mode, the location and cleaning up.
 - **Advanced:** memory limits and threads.
+- **About:** the version, who makes Archy, its license, and the open source
+  software it is built on with their licenses.
 
 A notice tells you when a change only applies after reopening the archive or
 restarting Archy.

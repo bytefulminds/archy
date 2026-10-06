@@ -52,6 +52,8 @@ artifacts = [
     "src/archy/resources/fonts/*.ttf",
     "src/archy/resources/icons/*.png",
     "src/archy/resources/i18n/*.json",
+    "src/archy/resources/licenses/*.txt",
+    "src/archy/resources/licenses/packages/*.txt",
 ]
 
 [tool.ruff]

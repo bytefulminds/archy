@@ -373,6 +373,15 @@
     "sort.tip": "Sort",
     "sort.ascending": "Ascending",
     "sort.descending": "Descending",
-    "sort.tip_current": "Sort: {column}, {order}"
+    "sort.tip_current": "Sort: {column}, {order}",
+    "settings.tab.about": "About",
+    "about.version": "Version {version}",
+    "about.made_by": "Made by {maker}",
+    "about.section.license": "License",
+    "about.license": "Archy is open source software under the MIT license. Source code: {source}",
+    "about.section.third_party": "Third-party software",
+    "about.third_party_intro": "Archy is built on the open source software below. Their licenses ask for this mention; the full texts are under Show licenses.",
+    "about.show_licenses": "Show licenses",
+    "about.licenses_title": "Licenses"
   }
 }

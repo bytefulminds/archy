@@ -241,6 +241,8 @@ def open_settings(
     general = add_page(tr("settings.tab.general"))
     temp_page = add_page(tr("settings.tab.temp"))
     advanced = add_page(tr("settings.tab.advanced"))
+    about_page = add_page(tr("settings.tab.about"))
+    _fill_about(dlg, about_page)
     group.button(0).setChecked(True)
     outer.addWidget(switch, 0, Qt.AlignmentFlag.AlignHCenter)
     outer.addWidget(stack, stretch=1)
@@ -466,7 +468,9 @@ def open_settings(
 
     # Tall enough that no tab scrolls on a normal screen; on a small screen
     # the tabs that do not fit scroll, each on its own.
-    tallest = max(page.content_height(content_width) for page in pages)
+    # (About scrolls on its own: its list of components should not make the
+    # whole dialog taller.)
+    tallest = max(page.content_height(content_width) for page in pages if page is not about_page)
     screen = parent.screen() if parent is not None else None
     avail = screen.availableGeometry().height() if screen is not None else 900
     stack.setMinimumHeight(min(tallest + 2, max(280, avail - 260)))
@@ -497,6 +501,96 @@ def open_settings(
     settings.set("theme/accent2", colors["accent2"])
     settings.sync()
     return True
+
+
+# -------------------------------------------------------------------- about
+def _link(url: str, label: str | None = None) -> str:
+    return f'<a href="{url}" style="color:{theme.ACCENT}; text-decoration:none">{label or url}</a>'
+
+
+def _rich(text: str, object_name: str = "settingsField") -> QLabel:
+    label = QLabel(text)
+    label.setObjectName(object_name)
+    label.setWordWrap(True)
+    label.setTextFormat(Qt.TextFormat.RichText)
+    label.setOpenExternalLinks(True)  # opens the system browser; Archy loads nothing
+    label.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
+    return label
+
+
+def _fill_about(dlg: QWidget, page: _Page) -> None:
+    """Settings > About: version, maker, license and the third-party notices."""
+    from pathlib import Path
+
+    from PySide6.QtGui import QPixmap
+
+    from archy import about
+
+    head = QWidget()
+    row = QHBoxLayout(head)
+    row.setContentsMargins(0, 0, 0, 0)
+    row.setSpacing(14)
+    logo = QLabel()
+    icon = Path(__file__).resolve().parents[1] / "resources" / "icons" / "archy.png"
+    pixmap = QPixmap(str(icon))
+    if not pixmap.isNull():
+        ratio = dlg.devicePixelRatioF()
+        pixmap = pixmap.scaled(
+            int(56 * ratio),
+            int(56 * ratio),
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation,
+        )
+        pixmap.setDevicePixelRatio(ratio)
+        logo.setPixmap(pixmap)
+    row.addWidget(logo, 0, Qt.AlignmentFlag.AlignTop)
+    words = QVBoxLayout()
+    words.setSpacing(2)
+    name = QLabel("Archy")
+    name.setObjectName("aboutName")
+    version = QLabel(tr("about.version", version=about.version()))
+    version.setObjectName("settingsField")
+    maker = _rich(
+        tr("about.made_by", maker=about.MAKER) + " · " + _link(about.WEBSITE, about.WEBSITE_LABEL)
+    )
+    words.addWidget(name)
+    words.addWidget(version)
+    words.addWidget(maker)
+    row.addLayout(words, 1)
+    page.wide(head)
+
+    page.section(tr("about.section.license"))
+    page.wide(_rich(tr("about.license", source=_link(about.SOURCE))))
+
+    page.section(tr("about.section.third_party"))
+    page.wide(_rich(tr("about.third_party_intro")))
+    lines = "".join(
+        f"<tr><td style='padding:2px 14px 2px 0'>{c.name}</td>"
+        f"<td style='padding:2px 0; color:{theme.TEXT_DISABLED}'>{c.license}</td></tr>"
+        for c in about.COMPONENTS
+    )
+    page.wide(_rich(f"<table cellspacing='0'>{lines}</table>"))
+    show = QPushButton(tr("about.show_licenses"))
+    show.clicked.connect(lambda: _show_notices(dlg))
+    page.wide(_row(show))
+    page.finish()
+
+
+def _show_notices(parent: QWidget) -> None:
+    from PySide6.QtWidgets import QPlainTextEdit
+
+    from archy import about
+    from archy.services.providers import text_font
+
+    dlg = SoftDialog(parent, tr("about.licenses_title"))
+    text = QPlainTextEdit()
+    text.setReadOnly(True)
+    text.setFont(text_font())
+    text.setPlainText(about.notices_text())
+    text.setMinimumSize(640, 460)
+    dlg.add_body_widget(text)
+    dlg.add_button(tr("button.ok"), True, primary=True)
+    dlg.exec()
 
 
 # ------------------------------------------------------------------ helpers

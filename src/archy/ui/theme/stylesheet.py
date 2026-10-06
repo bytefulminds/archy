@@ -448,6 +448,9 @@ _TEMPLATE = """
         selection-color: {TEXT_PRIMARY};
         outline: none;
     }}
+    QLabel#aboutName {{
+        color: {TEXT_PRIMARY}; font-family: "{DISPLAY_FAMILY}"; font-size: 20px; font-weight: 600;
+    }}
     QLabel#settingsSection {{
         color: {ACCENT}; font-family: "{DISPLAY_FAMILY}"; font-size: 12px; font-weight: 600;
     }}

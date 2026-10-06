@@ -44,6 +44,11 @@ archive logic pure and unit-testable without a display (the whole `tests/` suite
 runs headless against `core/` and the pure parts of `services/`). If you find
 yourself wanting Qt in `core/`, the logic belongs in `services/` or `ui/`.
 
+`archy/about.py` (Qt-free) holds what Settings > About shows: the maker, the
+third-party components with their licenses, and the notices text built from
+`resources/licenses/` (package license files refreshed by
+`scripts/collect_licenses.py`).
+
 ### core/ - archive logic (no Qt)
 
 - `backend.py` - the heart. Defines `ArchiveBackend`, the abstract base every

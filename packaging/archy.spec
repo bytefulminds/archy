@@ -52,6 +52,8 @@ datas = [
     (str(SRC / "archy" / "resources" / "fonts"), "archy/resources/fonts"),
     (str(SRC / "archy" / "resources" / "icons"), "archy/resources/icons"),
     (str(SRC / "archy" / "resources" / "i18n"), "archy/resources/i18n"),
+    # Third-party license texts, shown in Settings > About.
+    (str(SRC / "archy" / "resources" / "licenses"), "archy/resources/licenses"),
 ]
 
 # --- native libraries -------------------------------------------------------

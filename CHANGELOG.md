@@ -12,6 +12,8 @@ next release.
 
 ### Added
 
+- **About Archy** in Settings: the version, made by Bytefulminds, the license,
+  and the open source software Archy uses with their licenses.
 - **Sort in every view.** A sort button next to the views sorts the folder by
   name, type, size or date modified, ascending or descending; it works in the
   thumbnail views too and follows the column headers of the list view. Folders

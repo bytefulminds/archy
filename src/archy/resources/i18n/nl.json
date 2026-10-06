@@ -373,6 +373,15 @@
     "sort.tip": "Sorteren",
     "sort.ascending": "Oplopend",
     "sort.descending": "Aflopend",
-    "sort.tip_current": "Sorteren: {column}, {order}"
+    "sort.tip_current": "Sorteren: {column}, {order}",
+    "settings.tab.about": "Over Archy",
+    "about.version": "Versie {version}",
+    "about.made_by": "Gemaakt door {maker}",
+    "about.section.license": "Licentie",
+    "about.license": "Archy is opensourcesoftware onder de MIT-licentie. Broncode: {source}",
+    "about.section.third_party": "Software van derden",
+    "about.third_party_intro": "Archy is gebouwd op de opensourcesoftware hieronder. Hun licenties vragen om deze vermelding; de volledige teksten staan onder Licenties tonen.",
+    "about.show_licenses": "Licenties tonen",
+    "about.licenses_title": "Licenties"
   }
 }
