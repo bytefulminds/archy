@@ -32,7 +32,8 @@ hundred thousand photos, where "unpack everything first" is not an option.
 ### Photos and videos, without unpacking
 
 Every photo in a folder becomes a thumbnail, including iPhone HEIC, and always
-upright. Click one to see its size in pixels, the camera and its settings.
+upright, and camera RAW and Photoshop files get previews too. Click one to see
+its size in pixels, the camera and its settings, or start a slideshow.
 Videos play right away, with a seek bar you can drag and frame-by-frame
 stepping. Search the whole archive by name and jump straight to what you find.
 
@@ -85,11 +86,12 @@ memory, passwords are never stored, and nothing is loaded from the internet.
   <img src="docs/screenshots/settings-temp-files.png" alt="The temporary files settings, with the work mode and cleanup options" width="49%">
 </p>
 
-And more: archives with more than 100,000 files open without freezing, a 7z
-backup that is only partly stored without compression is pointed out (so you
-know why some files open slower), zip, 7z, tar and (with an extra library) rar
-are supported, and Archy speaks English and Dutch, with room for more
-languages.
+And more: music plays in the preview, you go back and forward through folders,
+archives inside an archive open too (experimental), archives with more than
+100,000 files open without freezing, a 7z backup that is only partly stored
+without compression is pointed out (so you know why some files open slower),
+zip, 7z, tar and (with an extra library) rar are supported, and Archy speaks
+English and Dutch, with room for more languages.
 
 ## Getting started
 
