@@ -129,6 +129,7 @@ class OpeningMixin:
         self._view_group.button(start).setChecked(True)
         self._views.setCurrentIndex(start)
         self._refresh_folder()
+        self._status_selection.setText(tr("status.no_selection"))
 
         self.setWindowTitle(tr("open.window_title", name=path.name))
         self._archive_name_label.setText(path.name)
@@ -211,6 +212,12 @@ class OpeningMixin:
             self._search.clear()
         self._show_placeholder(tr("preview.select_file"))
         self._set_status(tr("status.ready"))
+        # Nothing of the closed archive stays in the status strip: no
+        # selection, no folder or thumbnail progress (an extraction keeps its
+        # own progress until it ends).
+        self._status_selection.setText(tr("status.no_selection"))
+        self._on_prefetch_done()
+        self._on_thumb_progress(0, 0)
         self._extract_action.setEnabled(False)
         self._extract_all_action.setEnabled(False)
         self._update_counts()

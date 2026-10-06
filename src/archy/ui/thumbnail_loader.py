@@ -231,6 +231,11 @@ class ThumbnailLoader(QObject):
             self._cache_bytes -= _pixmap_bytes(evicted)
 
     def set_backend(self, backend: ArchiveBackend | None) -> None:
+        if backend is not self._backend:
+            # Thumbnails are keyed by path inside the archive: another archive
+            # (or an archive inside this one) can have the same paths.
+            self._cache.clear()
+            self._cache_bytes = 0
         self._backend = backend
         self.clear()
 

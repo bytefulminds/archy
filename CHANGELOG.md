@@ -24,8 +24,14 @@ next release.
 
 ### Fixed
 
+- Opening another archive could show thumbnails from the previous one for
+  files with the same path.
 - The grey path (in search results) and size under a selected thumbnail were
   hard to read on the teal selection; they are now shown in a light colour.
+- Closing an archive (or opening another one) while a folder was still
+  loading, or with a file selected, left the selection and the progress bars in
+  the status strip under the file list until the next archive opened. Leaving a
+  folder while it loads also ends its progress bar now.
 
 ## [0.1.0] - 2026-10-04
 

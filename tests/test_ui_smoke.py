@@ -835,3 +835,43 @@ def test_sorting_applies_to_every_view_keeps_folders_first_and_is_remembered(tmp
     finally:
         QCoreApplication.setOrganizationName(org)
         QCoreApplication.setApplicationName(name)
+
+
+def test_closing_an_archive_clears_the_status_strip(tmp_path) -> None:  # noqa: ANN001
+    # A selection and a folder pass still running for the closed archive must
+    # not stay behind in the status strip under the file list.
+    import zipfile
+
+    from archy.ui import theme
+    from archy.ui.main_window import MainWindow
+
+    archive = tmp_path / "a.zip"
+    with zipfile.ZipFile(archive, "w") as z:
+        for i in range(5):
+            z.writestr(f"pics/{i}.txt", b"x" * 100)
+
+    app = _app()
+    theme.apply(app)
+    window = MainWindow()
+    window.resize(1000, 650)
+    window.show()
+    _open(window, archive)
+    window._enter_folder(window._nav[0].children["pics"])
+    window._select_path("pics/1.txt")
+    app.processEvents()
+    assert "1.txt" in window._status_selection.text()
+
+    # A pass that is still decoding this folder when the archive is closed.
+    window._prefetcher._running = True
+    window._on_prefetch_started(5)
+    window._on_prefetch_progress(2, 5)
+    window._on_thumb_progress(1, 5)
+    assert window._prefetch_bar.isVisible()
+
+    window.close_archive()
+    app.processEvents()
+    assert window._status_selection.text() == "No selection"
+    assert not window._prefetch_bar.isVisible() and not window._prefetch_label.isVisible()
+    assert not window._thumb_bar.isVisible() and not window._thumb_label.isVisible()
+    assert window._status_msg.text() == "Ready"
+    window.close()

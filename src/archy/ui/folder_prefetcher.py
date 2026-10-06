@@ -50,6 +50,7 @@ class FolderPrefetcher(QObject):
         # for the new one (ending its indicator too early).
         self._token = 0
         self._armed = False
+        self._running = False  # a pass for the current token is in flight
         self._latest: tuple[int, int] | None = None
         self._progress_timer = QTimer(self)
         self._progress_timer.setSingleShot(True)
@@ -64,15 +65,29 @@ class FolderPrefetcher(QObject):
         self._backend = backend
         self._armed = False
         self._token += 1  # whatever still runs for the previous archive is stale
+        self._end_stale_pass()
 
     def start_folder(self) -> None:
         """Arm the pass for the current folder (does not decode yet)."""
         if self._backend is None:
             self._armed = False
+            self._end_stale_pass()
             return
         self._generation = self._backend.begin_folder()
         self._token += 1
         self._armed = True
+        self._end_stale_pass()
+
+    def _end_stale_pass(self) -> None:
+        """A pass that was running belongs to another folder or archive now:
+        its own end will be ignored, so end its indicator here (otherwise the
+        progress bar would stay up after closing the archive or leaving the
+        folder)."""
+        if self._running:
+            self._running = False
+            self._progress_timer.stop()
+            self._latest = None
+            self.done.emit()
 
     def ensure(self, entries: list[ArchiveEntry]) -> None:
         """Run the folder pass once for the current folder."""
@@ -83,6 +98,7 @@ class FolderPrefetcher(QObject):
         thumbs = self._thumbs
         wanted = thumbs.wanted_paths(files) if thumbs is not None else set()
         thumb_generation = thumbs.generation if thumbs is not None else 0
+        self._running = True
         self.started.emit(len(files))
         self._pool.start(
             _PrefetchTask(
@@ -112,6 +128,7 @@ class FolderPrefetcher(QObject):
 
     def _on_done(self, _count: int, token: int) -> None:
         if token == self._token:
+            self._running = False
             self._progress_timer.stop()
             self._flush_progress()  # the final "N / N" is never dropped
             self.done.emit()
