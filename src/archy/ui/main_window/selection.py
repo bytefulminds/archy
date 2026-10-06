@@ -90,3 +90,5 @@ class SelectionMixin:
             return
         if node.is_dir:
             self._enter_folder(node)
+        elif self._is_nested_candidate(node):
+            self._open_nested(node)  # an archive inside the archive

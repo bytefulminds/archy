@@ -392,6 +392,14 @@
     "crumb.more": {
       "one": "nog {count} map",
       "other": "nog {count} mappen"
-    }
+    },
+    "nested.title": "Archief in een archief",
+    "nested.too_big": "{name} ({size}) is te groot om binnen het archief te openen: dat gebeurt in het geheugen. Pak het uit en open het los.",
+    "nested.failed": "Dit archief kon niet worden geopend: {error}",
+    "nested.status": "{name} geopend vanuit het archief (experimenteel, alleen lezen)",
+    "nested.back_to": "Terug naar {name}",
+    "nested.badge": "Test",
+    "nested.badge_tip": "Archieven in een archief zitten nog in de testfase: ze openen vanuit het geheugen en alleen lezen.",
+    "lock.nested_text": "Een archief in een ander archief opent alleen lezen (experimenteel). Pak het uit om het te wijzigen."
   }
 }

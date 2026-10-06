@@ -10,6 +10,7 @@ from PySide6.QtCore import (
 from PySide6.QtWidgets import (
     QLabel,
     QMenu,
+    QSizePolicy,
     QToolButton,
 )
 
@@ -63,6 +64,8 @@ class NavigationMixin:
         if len(self._nav) > 1:
             self._nav.pop()
             self._refresh_folder()
+        elif self._outer_levels:
+            self._leave_nested(len(self._outer_levels) - 1)  # up out of it
 
     def _enter_folder(self, node: TreeNode) -> None:
         self._nav.append(node)
@@ -167,6 +170,18 @@ class NavigationMixin:
         icon = QLabel()
         icon.setPixmap(theme.symbol_icon("folder_zip", 20, theme.ACCENT).pixmap(20, 20))
         self._breadcrumb_layout.addWidget(icon)
+        # The archives this one was opened from: click one to go back to it.
+        for depth, level in enumerate(self._outer_levels):
+            outer = QToolButton()
+            outer.setObjectName("crumb")
+            outer.setAutoRaise(True)
+            outer.setText(level.label)
+            outer.setToolTip(tr("nested.back_to", name=level.label))
+            outer.clicked.connect(lambda _c=False, d=depth: self._leave_nested(d))
+            self._breadcrumb_layout.addWidget(outer)
+            sep = QLabel("›")
+            sep.setObjectName("crumbSep")
+            self._breadcrumb_layout.addWidget(sep)
 
         segments = [
             self._archive_label or tr("crumb.archive_fallback"),
@@ -186,6 +201,12 @@ class NavigationMixin:
             else:
                 crumb.clicked.connect(lambda _c=False, d=depth: self._go_to_depth(d))
             self._breadcrumb_layout.addWidget(crumb)
+            if depth == 0 and self._outer_levels:
+                badge = QLabel(tr("nested.badge"))
+                badge.setObjectName("experimentalBadge")
+                badge.setToolTip(tr("nested.badge_tip"))
+                badge.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+                self._breadcrumb_layout.addWidget(badge, 0, Qt.AlignmentFlag.AlignVCenter)
         if any(child.is_dir for child in self._nav[-1].children.values()):
             self._breadcrumb_layout.addWidget(self._crumb_menu_button(last))
         self._breadcrumb_layout.addStretch(1)
@@ -255,6 +276,9 @@ class NavigationMixin:
         close_btn.setIconSize(QSize(15, 15))
         close_btn.setText(tr("crumb.close"))
         close_btn.setToolTip(tr("crumb.close_tip"))
+        if self._outer_levels:
+            # A longer path: the button keeps its icon (the tooltip says it).
+            close_btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
         close_btn.clicked.connect(self.close_archive)
         self._breadcrumb_layout.addWidget(close_btn)
 

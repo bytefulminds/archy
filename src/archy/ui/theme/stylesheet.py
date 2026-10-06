@@ -215,6 +215,11 @@ _TEMPLATE = """
     }}
     QToolButton#crumbSep:hover {{ background: {_GLASS_STRONG}; color: {TEXT_PRIMARY}; }}
     QToolButton#crumbSep::menu-indicator {{ image: none; width: 0; }}
+    QLabel#experimentalBadge {{
+        background: {_FILL_SECONDARY_16}; color: {SECONDARY};
+        border: 1px solid {SECONDARY}; border-radius: 8px;
+        padding: 1px 7px; font-size: 10px; font-weight: 600;
+    }}
     QToolButton#crumbNav {{
         background: transparent; border: none; border-radius: 6px; padding: 3px;
     }}

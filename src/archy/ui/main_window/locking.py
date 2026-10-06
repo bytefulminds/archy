@@ -68,6 +68,8 @@ class LockMixin:
         backend = self._backend
         if backend is None:
             return NONE, "", ""
+        if getattr(backend, "nested", False):
+            return FIXED, tr("lock.read_only"), tr("lock.nested_text")
         if not backend.writable:
             kind = Path(self._archive_label).suffix.lstrip(".").upper() or tr("lock.format_this")
             return FIXED, tr("lock.read_only"), tr("lock.format_readonly", kind=kind)

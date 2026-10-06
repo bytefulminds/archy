@@ -100,6 +100,7 @@ class OpeningMixin:
 
     def _show_opened(self, path: Path, backend: ArchiveBackend, result, encrypted: bool) -> None:  # noqa: ANN001
         entries = result.entries
+        self._close_nested_levels()  # archives opened inside the previous one
         previous = self._backend
         self._req_id += 1  # a preview still loading from the previous archive stops
         self._backend = backend
@@ -185,6 +186,7 @@ class OpeningMixin:
         # stop its folder pass (close() does that), so the next archive opens
         # without waiting for them.
         self._req_id += 1
+        self._close_nested_levels()
         if self._backend is not None:
             self._backend.close()
         self._backend = None

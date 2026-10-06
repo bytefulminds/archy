@@ -57,6 +57,12 @@ archive by type: images, videos, documents and other files.
   column header). Folders always come first, in search results too. Archy
   remembers the sort for next time.
 
+**Archives inside an archive** (experimental): double-click a zip, 7z or tar
+(also .tar.gz) inside the archive to open it like a folder. It is read from
+memory and opens read-only; you can browse, preview, search and extract. The
+path shows the way back (and a *Test* label while this is being tested), and
+Backspace at its top goes back to where you were. Close closes all of them.
+
 When you open a folder in a thumbnail view (or the first file in it), Archy
 reads the whole folder in one pass in the background and makes every
 thumbnail along the way, with a progress indicator. After that the folder
@@ -322,7 +328,6 @@ languages are very welcome.
 
 - **Next:** installers for Windows (Inno Setup), macOS (.dmg) and Linux
   (AppImage), built in CI.
-- Browse into archives nested inside an archive.
 - More interface languages (German, Polish, Russian, ...): contributions welcome.
 - Rar support on Windows without a separate libarchive install.
 - Sort by date taken, rating and camera.

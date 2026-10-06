@@ -25,6 +25,9 @@ next release.
   forward through the folders you visited.
 - **Folders next to this one.** Click a / in the path to jump to a folder at
   that level.
+- **Archives inside an archive (experimental).** Double-click a zip, 7z or tar
+  inside the archive to open it like a folder: from memory, read-only, with
+  the way back in the path.
 - **About Archy** in Settings: the version, made by Bytefulminds, the license,
   and the open source software Archy uses with their licenses.
 - **Sort in every view.** A sort button next to the views sorts the folder by

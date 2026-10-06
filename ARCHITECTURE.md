@@ -68,6 +68,10 @@ third-party components with their licenses, and the notices text built from
     rar and exotic formats via libarchive. libarchive is **optional**: when it is
     not available (e.g. Windows without the DLL) those formats report
     UnsupportedFormatError and zip/7z/tar keep working.
+  - `nested_backend.py` (`NestedBackend`) - an archive inside an archive,
+    read-only from its bytes in memory (zip via pyzipper, 7z via py7zr, tar via
+    tarfile, others via libarchive's memory reader). Experimental; never
+    written to disk. The window side is `ui/main_window/nested.py`.
 - `factory.py` - `backend_for(path)` picks the right backend for a file.
 - `detect.py` - format detection by magic bytes + extension.
 - `tree.py` - turns a flat entry list into a `TreeNode` folder tree.
@@ -398,6 +402,9 @@ inherits from. This keeps each area easy to find and read without a
   back/forward history (folder paths by name, so a reload keeps it; mouse
   buttons through `MouseNavFilter` on the views' viewports), "/" separators
   that drop down the sibling folders, and the crumbs of outer archives.
+- `nested.py` (`NestedMixin`) - archives inside an archive: the outer
+  archive's state is kept as a `_Level` while the inner one is shown; going
+  back restores it and closes the inner backend.
 - `selection.py` (`SelectionMixin`) - selection state and double-click handling.
 - `search.py` (`SearchMixin`) - in-folder and whole-archive search.
 - `editing.py` (`EditingMixin`) - add / delete / rename and drag-drop.

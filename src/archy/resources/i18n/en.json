@@ -392,6 +392,14 @@
     "crumb.more": {
       "one": "{count} more folder",
       "other": "{count} more folders"
-    }
+    },
+    "nested.title": "Archive in an archive",
+    "nested.too_big": "{name} ({size}) is too large to open inside the archive: it is opened in memory. Extract it and open it on its own.",
+    "nested.failed": "This archive could not be opened: {error}",
+    "nested.status": "{name} opened from inside the archive (experimental, read-only)",
+    "nested.back_to": "Back to {name}",
+    "nested.badge": "Beta",
+    "nested.badge_tip": "Archives inside an archive are still being tested: they open from memory and read-only.",
+    "lock.nested_text": "An archive inside another archive opens read-only (experimental). Extract it to change it."
   }
 }

@@ -972,3 +972,50 @@ def test_back_forward_mouse_buttons_and_breadcrumb_folders(tmp_path) -> None:  #
     window.go_back()
     assert where() == "2024/zomer"
     window.close()
+
+
+def test_an_archive_inside_an_archive_opens_and_goes_back(tmp_path) -> None:  # noqa: ANN001
+    import io
+    import zipfile
+
+    from archy.ui import theme
+    from archy.ui.main_window import MainWindow
+
+    inner = io.BytesIO()
+    with zipfile.ZipFile(inner, "w") as z:
+        z.writestr("deep/note.txt", b"hello from the inner zip")
+    outer = tmp_path / "outer.zip"
+    with zipfile.ZipFile(outer, "w") as z:
+        z.writestr("old/inner.zip", inner.getvalue())
+        z.writestr("old/a.txt", b"a")
+
+    app = _app()
+    theme.apply(app)
+    window = MainWindow()
+    window.resize(1000, 650)
+    window.show()
+    _open(window, outer)
+    window._enter_folder(window._nav[0].children["old"])
+    outer_backend = window._backend
+    window._open_nested(window._nav[-1].children["inner.zip"])
+    app.processEvents()
+
+    assert window._backend is not outer_backend and window._outer_levels
+    assert window._archive_label == "inner.zip"
+    assert window._archive_name_label.text() == "outer.zip › inner.zip"
+    assert "deep" in window._nav[0].children
+    assert not window._backend.writable  # read-only
+    window._enter_folder(window._nav[0].children["deep"])
+    node = window._nav[-1].children["note.txt"]
+    assert window._backend.read_bytes(node.entry) == b"hello from the inner zip"
+
+    window.go_up()  # deep -> inner root
+    window.go_up()  # out of the inner archive, back where we were
+    assert window._backend is outer_backend and not window._outer_levels
+    assert [n.name for n in window._nav[1:]] == ["old"]
+    assert window._archive_name_label.text() == "outer.zip"
+
+    window._open_nested(window._nav[-1].children["inner.zip"])
+    window.close_archive()  # closes both
+    assert window._backend is None and not window._outer_levels
+    window.close()

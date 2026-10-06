@@ -38,6 +38,7 @@ from archy.ui.main_window.file_panel import FilePanelMixin
 from archy.ui.main_window.header import HeaderMixin
 from archy.ui.main_window.locking import LockMixin
 from archy.ui.main_window.navigation import MouseNavFilter, NavigationMixin
+from archy.ui.main_window.nested import NestedMixin
 from archy.ui.main_window.opening import OpeningMixin
 from archy.ui.main_window.preview import PreviewMixin
 from archy.ui.main_window.search import SearchMixin
@@ -59,6 +60,7 @@ class MainWindow(
     ActionsMixin,
     OpeningMixin,
     NavigationMixin,
+    NestedMixin,
     SelectionMixin,
     SearchMixin,
     LockMixin,
@@ -104,6 +106,8 @@ class MainWindow(
         # Folders visited, for back/forward (by path inside the archive).
         self._history: list[tuple[str, ...]] = []
         self._history_index = -1
+        # Archives we went into another archive from (see nested.py).
+        self._outer_levels: list = []
         # Search scope: "archive" (default) searches the whole archive and shows
         # a flat results list; "folder" filters just the current folder (Ctrl+F).
         self._search_scope = "archive"
