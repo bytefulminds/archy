@@ -135,7 +135,15 @@ third-party components with their licenses, and the notices text built from
 - `image_decode.py` - decode image bytes for the preview and thumbnails:
   Qt's `QImageReader` first (orientation applied, scaled JPEG decoding, GIL
   released), then pi-heif (decode-only pillow-heif) / Pillow for HEIC and AVIF where Qt has no
-  plugin (Qt reads HEIC only on macOS).
+  plugin (Qt reads HEIC only on macOS). A `name` routes camera RAW and PSD
+  to `raw_decode.py` first (Qt would read a RAW's tiny TIFF thumbnail).
+- `raw_decode.py` - camera RAW: the file is scanned for embedded JPEG streams,
+  their size read from the JPEG frame header, and the largest one Qt decodes
+  is used (lossless SOF3 sensor data is skipped), turned upright by the RAW's
+  own orientation (TIFF IFD0, or the CR3 CMT1 box) when the JPEG has none.
+  PSD: Pillow's composite image, else the JPEG thumbnail in image resource
+  1036/1033. `file_details` reads RAW EXIF from Pillow, the CR3 CMT boxes or
+  the embedded JPEG.
 - `temp_files.py` - `TempManager`: temp-files mode, the per-session encrypted
   store and its cleanup.
 - `encrypted_device.py` - `EncryptedBlobDevice`, a decrypting QIODevice so Qt

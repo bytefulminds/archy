@@ -211,7 +211,7 @@ def _build_text(name: str, data: bytes) -> QWidget:
 
 
 def _build_image(name: str, data: bytes) -> QWidget:
-    image = decode_image(data)  # upright; HEIC/AVIF too
+    image = decode_image(data, name=name)  # upright; HEIC/AVIF, RAW and PSD too
     if image.isNull():
         return _message(tr("preview.image_failed", name=name))
 
@@ -230,7 +230,12 @@ def _build_image(name: str, data: bytes) -> QWidget:
     # Expose the viewer + rotate so the preview panel's own chrome can drive it.
     container._zx_cleanup = _cleanup  # type: ignore[attr-defined]
     container._zx_image_view = viewer  # type: ignore[attr-defined]
-    details_of(container, file_details.image_details(data, image.width(), image.height()))
+    from archy.services.raw_decode import is_raw
+
+    details_of(
+        container,
+        file_details.image_details(data, image.width(), image.height(), raw=is_raw(name)),
+    )
 
     layout.addWidget(viewer, stretch=1)
     return container

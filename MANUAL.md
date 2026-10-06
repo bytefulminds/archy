@@ -75,6 +75,13 @@ orientation. Zoom with the wheel or the buttons under the image, rotate, and
 use the arrows for the previous and next file. **F11** shows the preview full
 screen, where the arrow keys go to the previous and next file.
 
+**Camera RAW and Photoshop.** RAW files from Canon (CR2, CR3), Nikon (NEF),
+Sony (ARW), Fujifilm (RAF), Olympus (ORF), Panasonic (RW2), Pentax (PEF) and
+DNG show the preview the camera stores inside the file, often at full or half
+resolution, upright, with the camera details. Photoshop files (PSD) show their
+flattened image, as saved with "Maximize compatibility" (Photoshop's default),
+or else their thumbnail.
+
 **Video.** Play and pause with **Space**, jump 10 seconds back or forward, drag
 the seek bar or click on it, and step frame by frame with the scroll wheel
 while paused. In a 7z made with *Store* a video starts at once and is read

@@ -72,6 +72,31 @@ _IMAGE_EXT = {
     ".heif",
     ".hif",
     ".avif",
+    # Camera RAW (the embedded preview) and Photoshop (the composite image);
+    # see services/raw_decode.py.
+    ".cr2",
+    ".cr3",
+    ".crw",
+    ".nef",
+    ".nrw",
+    ".arw",
+    ".srf",
+    ".sr2",
+    ".dng",
+    ".raf",
+    ".orf",
+    ".rw2",
+    ".rwl",
+    ".pef",
+    ".srw",
+    ".3fr",
+    ".iiq",
+    ".erf",
+    ".kdc",
+    ".mos",
+    ".mrw",
+    ".psd",
+    ".psb",
 }
 _PDF_EXT = {".pdf"}
 _VIDEO_EXT = {".mp4", ".mkv", ".mov", ".avi", ".webm", ".m4v", ".wmv", ".flv"}

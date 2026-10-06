@@ -21,7 +21,8 @@ dependencies = [
     "pyzipper>=0.3.6",
     "pycryptodomex>=3.19",  # encrypted temp files (also used by pyzipper/py7zr)
     "psutil>=5.9",
-    "pi-heif>=0.18",  # HEIC photos (and AVIF via Pillow) where Qt cannot read them
+    "pi-heif>=0.18",  # HEIC photos where Qt cannot read them
+    "pillow>=10",  # EXIF details, AVIF and PSD
 ]
 
 [project.urls]

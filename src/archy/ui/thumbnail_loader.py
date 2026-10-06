@@ -88,10 +88,11 @@ def _video_thumb_solid_cap() -> int:
     return int(min(_VIDEO_THUMB_SOLID_CEILING, memory.spare() // _VIDEO_THUMB_COPIES))
 
 
-def _decode_image_thumb(data: bytes) -> QImage:
+def _decode_image_thumb(data: bytes, name: str = "") -> QImage:
     """Decode image bytes straight to thumbnail size, upright (see
-    services/image_decode.py: scaled JPEG decoding, GIL released, HEIC)."""
-    return decode_image(data, QSize(_THUMB_SIZE, _THUMB_SIZE))
+    services/image_decode.py: scaled JPEG decoding, GIL released, HEIC, the
+    embedded preview of a camera RAW, a PSD's composite)."""
+    return decode_image(data, QSize(_THUMB_SIZE, _THUMB_SIZE), name)
 
 
 def _decode_video_frame(data: object) -> QImage | None:
@@ -474,11 +475,12 @@ class _ThumbTask(QRunnable):
             image = QImage()
             try:
                 if self._data is not None:
-                    image = _decode_image_thumb(self._data)
+                    image = _decode_image_thumb(self._data, self._entry.name)
                 elif kind_for_name(self._entry.name) is PreviewKind.VIDEO:
                     image = self._video_thumbnail() or QImage()
                 elif self._backend is not None:
-                    image = _decode_image_thumb(self._backend.read_bytes(self._entry, cache=False))
+                    data = self._backend.read_bytes(self._entry, cache=False)
+                    image = _decode_image_thumb(data, self._entry.name)
             except Exception:  # noqa: BLE001 - a bad file just gets no thumbnail
                 image = QImage()
             self._data = None  # let the (possibly large) bytes go before signalling

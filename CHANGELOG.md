@@ -12,6 +12,12 @@ next release.
 
 ### Added
 
+- **Camera RAW previews.** CR2, CR3, NEF, ARW, RAF, ORF, RW2, PEF, DNG and
+  more show the preview the camera stores inside the file (often full or half
+  resolution) as thumbnail and preview, upright, with the camera details. No
+  RAW converter needed.
+- **Photoshop previews.** PSD files show their flattened image, or their
+  thumbnail when that cannot be read.
 - **About Archy** in Settings: the version, made by Bytefulminds, the license,
   and the open source software Archy uses with their licenses.
 - **Sort in every view.** A sort button next to the views sorts the folder by

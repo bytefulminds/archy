@@ -23,9 +23,19 @@ _HEIF_BRANDS = {b"heic", b"heix", b"heim", b"heis", b"hevc", b"hevx", b"mif1", b
 _AVIF_BRANDS = {b"avif", b"avis"}
 
 
-def decode_image(data: bytes, box: QSize | None = None) -> QImage:
+def decode_image(data: bytes, box: QSize | None = None, name: str = "") -> QImage:
     """The image in ``data``, upright, fitted inside ``box`` when given (never
-    enlarged). A null QImage when it cannot be decoded."""
+    enlarged). A null QImage when it cannot be decoded. ``name`` picks the
+    camera-RAW and Photoshop readers (services/raw_decode.py); Qt would
+    otherwise read a RAW's tiny TIFF thumbnail."""
+    from archy.services import raw_decode
+
+    if raw_decode.is_raw(name):
+        image = raw_decode.decode_raw(data, box)
+        if not image.isNull():
+            return image
+    elif raw_decode.is_psd(name) or data[:4] == b"8BPS":
+        return raw_decode.decode_psd(data, box)
     image = _decode_qt(data, box)
     if image.isNull() and _is_heif_family(data):
         image = _decode_heif(data, box)

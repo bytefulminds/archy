@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import io
+import struct
 from datetime import datetime
 from fractions import Fraction
 
@@ -57,11 +58,22 @@ def count(key: str, amount: int) -> str:
     return tr(key, count=amount)
 
 
-def image_details(data: bytes, width: int, height: int) -> Details:
+_PIXEL_X = 0xA002
+_PIXEL_Y = 0xA003
+
+
+def image_details(data: bytes, width: int, height: int, *, raw: bool = False) -> Details:
     """A photo's size in pixels, then camera, lens, exposure and the date it
-    was taken when its EXIF has them."""
-    details: Details = [("details.dimensions", dimensions(width, height))]
-    exif = _read_exif(data)
+    was taken when its EXIF has them. For a camera RAW the size is the
+    sensor's (from the EXIF), not that of the embedded preview shown."""
+    exif = _read_exif(data, raw=raw)
+    details: Details = []
+    if raw:
+        x, y = _number(exif.get(_PIXEL_X)), _number(exif.get(_PIXEL_Y))
+        if x and y:
+            details.append(("details.dimensions", dimensions(int(x), int(y))))
+    else:
+        details.append(("details.dimensions", dimensions(width, height)))
     if not exif:
         return details
     camera = _camera(exif.get(_MAKE), exif.get(_MODEL))
@@ -105,9 +117,10 @@ def _encoding_label(encoding: str) -> str:
     return known.get(name, encoding.upper())
 
 
-def _read_exif(data: bytes) -> dict[int, object]:
-    """The EXIF tags of a JPEG, TIFF, PNG, WebP, HEIC or AVIF, flattened (main
-    IFD plus the EXIF sub-IFD); empty when there are none or Pillow is missing."""
+def _read_exif(data: bytes, *, raw: bool = False) -> dict[int, object]:
+    """The EXIF tags of a JPEG, TIFF, PNG, WebP, HEIC, AVIF or camera RAW,
+    flattened (main IFD plus the EXIF sub-IFD); empty when there are none or
+    Pillow is missing."""
     try:
         from PIL import Image
     except Exception:  # noqa: BLE001 - optional
@@ -116,13 +129,50 @@ def _read_exif(data: bytes) -> dict[int, object]:
     try:
         with Image.open(io.BytesIO(data)) as picture:  # reads the header only
             exif = picture.getexif()
-    except Exception:  # noqa: BLE001 - not an image Pillow reads: try HEIF below
+    except Exception:  # noqa: BLE001 - not an image Pillow reads: try the others
         exif = _heif_exif(data)
+        if not exif and raw:
+            return _raw_exif(data)
     if not exif:
-        return {}
+        return _raw_exif(data) if raw else {}
     tags: dict[int, object] = dict(exif)
     with contextlib.suppress(Exception):  # no EXIF sub-IFD
         tags.update(exif.get_ifd(_EXIF_IFD))
+    return tags
+
+
+def _raw_exif(data: bytes) -> dict[int, object]:
+    """EXIF of a RAW that Pillow does not open: a CR3 keeps its TIFF IFDs in
+    the CMT1 (main) and CMT2 (EXIF) boxes; other makers put EXIF in the
+    embedded JPEG."""
+    from PIL import Image
+
+    tags: dict[int, object] = {}
+    if data[4:8] == b"ftyp":
+        for box in (b"CMT1", b"CMT2"):
+            start = data.find(box, 0, 1 << 20)
+            if start == -1:
+                continue
+            (size,) = struct.unpack_from(">I", data, start - 4)
+            exif = Image.Exif()
+            with contextlib.suppress(Exception):
+                exif.load(data[start + 4 : start - 4 + size])
+                tags.update(dict(exif))
+        if tags:
+            return tags
+    start = data.find(b"\xff\xd8\xff")
+    while start != -1 and not tags:
+        with (
+            contextlib.suppress(Exception),
+            Image.open(io.BytesIO(data[start : start + (1 << 18)])) as picture,
+        ):
+            exif = picture.getexif()
+            tags = dict(exif)
+            with contextlib.suppress(Exception):
+                tags.update(exif.get_ifd(_EXIF_IFD))
+        start = data.find(b"\xff\xd8\xff", start + 3) if not tags else -1
+        if start > (8 << 20):
+            break
     return tags
 
 
