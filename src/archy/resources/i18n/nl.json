@@ -410,6 +410,14 @@
       "one": "nog {count}, typ om te filteren",
       "other": "nog {count}, typ om te filteren"
     },
-    "crumb.no_match": "Geen map gevonden"
+    "crumb.no_match": "Geen map gevonden",
+    "slideshow.previous": "Vorige foto",
+    "slideshow.next": "Volgende foto",
+    "slideshow.pause": "Pauzeren (spatie)",
+    "slideshow.play": "Afspelen (spatie)",
+    "slideshow.slower": "Langer per foto",
+    "slideshow.faster": "Korter per foto",
+    "slideshow.seconds_tip": "Tijd per foto",
+    "slideshow.stop": "Stoppen (Esc)"
   }
 }

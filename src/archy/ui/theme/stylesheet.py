@@ -366,6 +366,11 @@ _TEMPLATE = """
     QToolButton#stageNav:hover {{ background: {_SCRIM}; border-color: {ACCENT}; }}
 
     /* video controls: same glass-pill language as the image stage controls */
+    QFrame#slideshowBar {{
+        background: rgba(10, 14, 18, 0.78);
+        border: 1px solid {_EDGE_STRONG};
+        border-radius: 22px;
+    }}
     QFrame#videoControls {{
         background: {_SCRIM};
         border: 1px solid {_EDGE_STRONG};

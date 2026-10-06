@@ -410,6 +410,14 @@
       "one": "{count} more, type to narrow down",
       "other": "{count} more, type to narrow down"
     },
-    "crumb.no_match": "No folder matches"
+    "crumb.no_match": "No folder matches",
+    "slideshow.previous": "Previous photo",
+    "slideshow.next": "Next photo",
+    "slideshow.pause": "Pause (Space)",
+    "slideshow.play": "Play (Space)",
+    "slideshow.slower": "Longer per photo",
+    "slideshow.faster": "Shorter per photo",
+    "slideshow.seconds_tip": "Time per photo",
+    "slideshow.stop": "Stop (Esc)"
   }
 }

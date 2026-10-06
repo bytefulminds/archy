@@ -460,7 +460,14 @@ class PreviewMixin:
         )
         self._fs_window.showFullScreen()
 
-    def _navigate_media(self, step: int, kinds=_NAV_KINDS, *, wrap: bool = False) -> bool:  # noqa: ANN001
+    def _navigate_media(
+        self,
+        step: int,
+        kinds=_NAV_KINDS,  # noqa: ANN001
+        *,
+        wrap: bool = False,
+        accept=None,  # noqa: ANN001 - (TreeNode) -> bool, an extra condition
+    ) -> bool:
         """Select the previous/next file of ``kinds`` in the list; with
         ``wrap`` past the end it starts again at the other end. False when
         there is none."""
@@ -478,7 +485,12 @@ class PreviewMixin:
                 return False  # around once: nothing else of that kind
             index = self._proxy.index(r, 0)
             node = self._node_at(index)
-            if node is not None and not node.is_dir and kind_for_name(node.name) in kinds:
+            if (
+                node is not None
+                and not node.is_dir
+                and kind_for_name(node.name) in kinds
+                and (accept is None or accept(node))
+            ):
                 self._selection.setCurrentIndex(
                     index,
                     QItemSelectionModel.SelectionFlag.ClearAndSelect
@@ -489,9 +501,32 @@ class PreviewMixin:
         return False
 
     # ----------------------------------------------------------- slideshow
+    # A slideshow shows the photos of the folder full screen, one after
+    # another: only those Archy can show (a thumbnail or preview can be made,
+    # not too large for memory); a photo that turns out not to decode is
+    # skipped as well. A bar over the picture (it appears when the mouse
+    # moves) has previous, play/pause, next, the time per photo and stop.
+    def _slideshow_active(self) -> bool:
+        return self._fs_window is not None and getattr(self._fs_window, "bar", None) is not None
+
+    def _slide_ok(self, node: TreeNode) -> bool:
+        entry = node.entry
+        if entry is None or node.path in getattr(self, "_slideshow_skip", set()):
+            return False
+        if node.size > self._media_size_limit(PreviewKind.IMAGE, node):
+            return False
+        return self._thumbs.can_show(entry)
+
+    def _slide(self, step: int) -> bool:
+        return self._navigate_media(step, (PreviewKind.IMAGE,), wrap=True, accept=self._slide_ok)
+
     def _navigate_by_hand(self, step: int) -> None:
-        """Left/Right in full screen; restarts the slideshow's clock."""
-        self._navigate_media(step)
+        """Left/Right in full screen (and the bar's arrows): in a slideshow
+        the next photo, restarting its clock; otherwise the next file."""
+        if self._slideshow_active():
+            self._slide(step)
+        else:
+            self._navigate_media(step)
         timer = getattr(self, "_slideshow_timer", None)
         if timer is not None and timer.isActive():
             timer.start()
@@ -509,18 +544,42 @@ class PreviewMixin:
             timer = QTimer(self)
             timer.timeout.connect(self._slideshow_step)
             self._slideshow_timer = timer
+        self._slideshow_skip: set[str] = set()
         seconds = self._settings.slideshow_seconds
+        bar = self._fs_window.enable_slideshow_bar(
+            on_prev=lambda: self._navigate_by_hand(-1),
+            on_toggle=self._toggle_slideshow,
+            on_next=lambda: self._navigate_by_hand(1),
+            on_seconds=self._set_slideshow_seconds,
+            on_stop=self._fs_window.close,
+        )
+        bar.set_seconds(seconds)
+        bar.set_playing(True)
         timer.start(seconds * 1000)
         self._fs_window.show_toast(tr("slideshow.started", seconds=seconds))
 
-    def _toggle_slideshow(self) -> bool:
-        """Space in full screen: start or pause the slideshow (photos only;
-        a video keeps Space for play/pause)."""
+    def _set_slideshow_seconds(self, seconds: int) -> None:
+        """The time per photo, from the bar; also the default from now on."""
+        self._settings.set("slideshow/seconds", seconds)
         timer = getattr(self, "_slideshow_timer", None)
+        if timer is not None:
+            timer.setInterval(seconds * 1000)  # an active timer restarts with it
+
+    def _toggle_slideshow(self) -> bool:
+        """Space in full screen (and the bar's button): pause or continue the
+        slideshow, or start one on a photo; a video keeps Space for itself."""
+        timer = getattr(self, "_slideshow_timer", None)
+        bar = getattr(self._fs_window, "bar", None) if self._fs_window is not None else None
         if timer is not None and timer.isActive():
             timer.stop()
+            if bar is not None:
+                bar.set_playing(False)
             if self._fs_window is not None:
                 self._fs_window.show_toast(tr("slideshow.paused"))
+            return True
+        if bar is not None and timer is not None:
+            timer.start(self._settings.slideshow_seconds * 1000)
+            bar.set_playing(True)
             return True
         if self._req_kind is PreviewKind.IMAGE:
             self.start_slideshow()
@@ -528,8 +587,21 @@ class PreviewMixin:
         return False
 
     def _slideshow_step(self) -> None:
-        if self._fs_window is None or not self._navigate_media(1, (PreviewKind.IMAGE,), wrap=True):
+        if self._fs_window is None or not self._slide(1):
             self._slideshow_timer.stop()
+            bar = getattr(self._fs_window, "bar", None) if self._fs_window is not None else None
+            if bar is not None:
+                bar.set_playing(False)
+
+    def _slideshow_skip_failed(self, node: TreeNode) -> None:
+        """A photo in the slideshow that could not be shown: leave it out and
+        go straight on."""
+        if not self._slideshow_active():
+            return
+        self._slideshow_skip.add(node.path)
+        timer = getattr(self, "_slideshow_timer", None)
+        if timer is not None and timer.isActive():
+            QTimer.singleShot(0, self._slideshow_step)
 
     def _exit_fullscreen(self, widget: QWidget) -> None:
         self._fs_window = None
@@ -618,6 +690,8 @@ class PreviewMixin:
             )
             return
         if too_big:
+            if kind is PreviewKind.IMAGE:
+                self._slideshow_skip_failed(node)
             hint = "" if self._temp.enabled() else tr("preview.temp_hint")
             self._show_placeholder(
                 tr("preview.too_big", name=node.name, size=format_size(node.size), hint=hint)
@@ -773,7 +847,10 @@ class PreviewMixin:
             full_bleed = self._req_kind in (PreviewKind.IMAGE, PreviewKind.PDF)
             self._set_fullscreenable(self._req_kind in _MEDIA_KINDS)
             self._set_nav_enabled(True)
-            self._set_preview_widget(build_preview_widget(node.name, data), full_bleed=full_bleed)
+            widget = build_preview_widget(node.name, data)
+            self._set_preview_widget(widget, full_bleed=full_bleed)
+            if self._req_kind is PreviewKind.IMAGE and not hasattr(widget, "_zx_image_view"):
+                self._slideshow_skip_failed(node)
         # This in-memory preview replaces any previously spilled one; drop its
         # temp file now that the old widget has released it.
         self._temp.clear_preview()

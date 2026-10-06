@@ -95,9 +95,12 @@ flattened image, as saved with "Maximize compatibility" (Photoshop's default),
 or else their thumbnail.
 
 **Slideshow.** **F5** or the play button under a photo shows the photos of the
-folder one after another, full screen. **Space** pauses and continues, the
-arrow keys go back and forward, **Esc** stops. Set the time per photo under
-*Settings > General*.
+folder one after another, full screen. It skips files that are not photos,
+photos too large for memory and photos that cannot be decoded. Move the mouse
+for a bar with previous, play/pause, next, the time per photo (minus and plus)
+and stop. **Space** pauses and continues, the arrow keys go back and forward,
+**Esc** stops. The time per photo you choose is remembered (also under
+*Settings > General*).
 
 **Video.** Play and pause with **Space**, jump 10 seconds back or forward, drag
 the seek bar or click on it, and step frame by frame with the scroll wheel

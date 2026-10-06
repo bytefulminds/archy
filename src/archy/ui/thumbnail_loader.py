@@ -394,6 +394,11 @@ class ThumbnailLoader(QObject):
             self._last_progress = state
             self.progress.emit(*state)
 
+    def can_show(self, entry: ArchiveEntry) -> bool:
+        """Whether a picture can be made of this entry (not too large, not a
+        file that already failed to decode): what a slideshow shows."""
+        return self._is_thumbnailable(entry) and entry.path not in self._failed
+
     def _is_thumbnailable(self, entry: ArchiveEntry) -> bool:
         if entry.is_dir:
             return False

@@ -890,49 +890,77 @@ def _png(color: str) -> bytes:
     return bytes(data)
 
 
-def test_slideshow_steps_through_the_photos_full_screen_and_wraps(tmp_path) -> None:  # noqa: ANN001
+def test_slideshow_shows_only_showable_photos_with_a_bar_and_wraps(tmp_path) -> None:  # noqa: ANN001
     import time
     import zipfile
 
+    from PySide6.QtCore import QCoreApplication
+
     from archy.ui import theme
     from archy.ui.main_window import MainWindow
+    from archy.ui.settings import Settings
 
     archive = tmp_path / "photos.zip"
     with zipfile.ZipFile(archive, "w") as z:
         z.writestr("a.png", _png("#aa0000"))
-        z.writestr("b.png", _png("#00aa00"))
+        z.writestr("b.png", _png("#00aa00"))  # "too large" below
+        z.writestr("broken.png", b"not really a png")  # cannot be shown
         z.writestr("notes.txt", b"skipped by the slideshow")
         z.writestr("c.png", _png("#0000aa"))
 
     app = _app()
     theme.apply(app)
-    window = MainWindow()
-    window.resize(900, 600)
-    window.show()
-    _open(window, archive)
-    window._select_path("a.png")
-    deadline = time.monotonic() + 5
-    while not window._fullscreenable and time.monotonic() < deadline:
-        app.processEvents()  # the photo is shown
-    seen = []
-    window.start_slideshow()
-    assert window._fs_window is not None and window._slideshow_timer.isActive()
-    window._slideshow_timer.setInterval(60)  # a fast slideshow for the test
+    org, name = QCoreApplication.organizationName(), QCoreApplication.applicationName()
+    QCoreApplication.setOrganizationName("ArchyTest")
+    QCoreApplication.setApplicationName("ArchyTestSlideshow")
+    try:
+        Settings()._q.clear()
+        window = MainWindow()
+        window.resize(900, 600)
+        window.show()
+        _open(window, archive)
+        limit = window._media_size_limit
+        window._media_size_limit = lambda kind, node=None: (
+            1 if node is not None and node.name == "b.png" else limit(kind, node)
+        )
+        window._select_path("a.png")
+        deadline = time.monotonic() + 5
+        while not window._fullscreenable and time.monotonic() < deadline:
+            app.processEvents()  # the photo is shown
+        seen = []
+        window.start_slideshow()
+        bar = window._fs_window.bar
+        assert bar is not None and window._slideshow_timer.isActive()
+        window._slideshow_timer.setInterval(60)  # a fast slideshow for the test
 
-    deadline = time.monotonic() + 5
-    while len(seen) < 4 and time.monotonic() < deadline:
+        deadline = time.monotonic() + 5
+        while len([n for n in seen if n != "broken.png"]) < 3 and time.monotonic() < deadline:
+            app.processEvents()
+            node = window._node_at(window._selection.currentIndex())
+            if node is not None and (not seen or seen[-1] != node.name):
+                seen.append(node.name)
+            time.sleep(0.005)
+        assert "b.png" not in seen and "notes.txt" not in seen  # too large / not a photo
+        assert [n for n in seen if n != "broken.png"][:3] == ["a.png", "c.png", "a.png"]
+        # Left out: known as undecodable from its thumbnail, or tried once.
+        assert "broken.png" in window._slideshow_skip | window._thumbs._failed
+
+        # The bar: pause / play, the time per photo, stop.
+        bar.play.click()
+        assert not window._slideshow_timer.isActive()
+        bar.play.click()
+        assert window._slideshow_timer.isActive()
+        bar.faster.click()  # +1 s on the default 4
+        assert window._settings.slideshow_seconds == 5
+        assert window._slideshow_timer.interval() == 5000
+        bar.stop.click()
         app.processEvents()
-        node = window._node_at(window._selection.currentIndex())
-        if node is not None and (not seen or seen[-1] != node.name):
-            seen.append(node.name)
-        time.sleep(0.005)
-    assert seen[:4] == ["a.png", "b.png", "c.png", "a.png"]  # no text file; wraps around
-
-    assert window._toggle_slideshow() and not window._slideshow_timer.isActive()  # Space
-    window._fs_window.close()
-    app.processEvents()
-    assert window._fs_window is None
-    window.close()
+        assert window._fs_window is None and not window._slideshow_timer.isActive()
+        window.close()
+        Settings()._q.clear()
+    finally:
+        QCoreApplication.setOrganizationName(org)
+        QCoreApplication.setApplicationName(name)
 
 
 def test_music_plays_with_its_details(tmp_path) -> None:  # noqa: ANN001
