@@ -2,14 +2,14 @@ from __future__ import annotations
 
 import contextlib
 
-from PySide6.QtCore import QSize, Qt, QTimer
-from PySide6.QtGui import QCursor
+from PySide6.QtCore import QEvent, QSize, Qt, QTimer
+from PySide6.QtGui import QCursor, QGuiApplication
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QToolButton, QVBoxLayout, QWidget
 
 from archy.i18n import tr
 from archy.ui import theme
 
-_BAR_IDLE_MS = 2500  # the slideshow bar hides after this long without the mouse moving
+_BAR_IDLE_MS = 2500  # the slideshow bar (and the cursor) hide after this long at rest
 
 
 class SlideshowBar(QFrame):
@@ -119,6 +119,7 @@ class FullscreenWindow(QWidget):
         self._cursor_poll = QTimer(self)
         self._cursor_poll.setInterval(150)
         self._cursor_poll.timeout.connect(self._check_cursor)
+        self.cursor_hidden = False
 
     def enable_slideshow_bar(self, **callbacks) -> SlideshowBar:  # noqa: ANN003
         if self.bar is None:
@@ -136,13 +137,27 @@ class FullscreenWindow(QWidget):
         )
         self.bar.show()
         self.bar.raise_()
+        self._show_cursor()
         self._idle.start(_BAR_IDLE_MS)
 
     def _hide_bar(self) -> None:
         if self.bar is not None and not self.bar.underMouse():
             self.bar.hide()
+            self._hide_cursor()
         elif self.bar is not None:
             self._idle.start(_BAR_IDLE_MS)  # the pointer rests on the bar: keep it
+
+    def _hide_cursor(self) -> None:
+        # An application override cursor: the picture's own widgets set their
+        # cursors (a hand to pan), which would win over one set here.
+        if not self.cursor_hidden and self.isActiveWindow():
+            QGuiApplication.setOverrideCursor(Qt.CursorShape.BlankCursor)
+            self.cursor_hidden = True
+
+    def _show_cursor(self) -> None:
+        if self.cursor_hidden:
+            QGuiApplication.restoreOverrideCursor()
+            self.cursor_hidden = False
 
     def _check_cursor(self) -> None:
         position = QCursor.pos()
@@ -196,9 +211,16 @@ class FullscreenWindow(QWidget):
         else:
             super().keyPressEvent(event)
 
+    def changeEvent(self, event) -> None:  # noqa: ANN001, N802 - Qt override
+        # Switching to another window brings the cursor back.
+        if event.type() == QEvent.Type.ActivationChange and not self.isActiveWindow():
+            self._show_cursor()
+        super().changeEvent(event)
+
     def closeEvent(self, event) -> None:  # noqa: ANN001, N802 - Qt override
         self._cursor_poll.stop()
         self._idle.stop()
+        self._show_cursor()
         self._on_exit(self._content)
         super().closeEvent(event)
 

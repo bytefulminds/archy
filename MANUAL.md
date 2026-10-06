@@ -98,7 +98,8 @@ or else their thumbnail.
 folder one after another, full screen. It skips files that are not photos,
 photos too large for memory and photos that cannot be decoded. Move the mouse
 for a bar with previous, play/pause, next, the time per photo (minus and plus)
-and stop. **Space** pauses and continues, the arrow keys go back and forward,
+and stop; after 2.5 seconds without moving, the bar and the mouse pointer hide
+again. **Space** pauses and continues, the arrow keys go back and forward,
 **Esc** stops. The time per photo you choose is remembered (also under
 *Settings > General*).
 

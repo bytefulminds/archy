@@ -1186,3 +1186,35 @@ def test_a_click_in_the_thumbnail_view_previews_the_file(tmp_path) -> None:  # n
     assert "note.txt" in window._status_selection.text()
     assert window._preview_title.full_text() == "note.txt"
     window.close()
+
+
+def test_slideshow_hides_the_cursor_when_the_mouse_rests() -> None:
+    from PySide6.QtGui import QGuiApplication
+    from PySide6.QtWidgets import QLabel
+
+    from archy.ui.main_window import chrome
+
+    app = _app()
+    shown = QLabel("photo")
+    window = chrome.FullscreenWindow(shown, lambda content: None, lambda step: None)
+    window.resize(800, 600)
+    window.show()
+    window.activateWindow()
+    app.processEvents()
+    window.isActiveWindow = lambda: True  # offscreen windows are not always activated
+    noop = lambda *args: None  # noqa: E731
+    window.enable_slideshow_bar(
+        on_prev=noop, on_toggle=noop, on_next=noop, on_seconds=noop, on_stop=noop
+    )
+    before = QGuiApplication.overrideCursor()
+    assert not window.cursor_hidden
+    window._hide_bar()  # what the 2.5 s idle timer does
+    assert window.cursor_hidden and not window.bar.isVisible()
+    assert QGuiApplication.overrideCursor().shape() == chrome.Qt.CursorShape.BlankCursor
+    window._last_cursor = None  # the mouse moved
+    window._check_cursor()
+    assert not window.cursor_hidden and window.bar.isVisible()
+    assert QGuiApplication.overrideCursor() is before
+    window._hide_bar()
+    window.close()  # leaving the slideshow always brings the cursor back
+    assert not window.cursor_hidden and QGuiApplication.overrideCursor() is before

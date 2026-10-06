@@ -24,7 +24,8 @@ next release.
   full screen, one after another. Only photos Archy can show are included: no
   files too large for memory or that cannot be decoded. When the mouse moves, a
   bar appears with previous, play/pause, next, the time per photo (4 s by
-  default) and stop; Space and Esc work too.
+  default) and stop; Space and Esc work too. When the mouse rests for 2.5
+  seconds, the bar and the mouse pointer hide.
 - **Back and forward.** Arrows at the start of the path, the mouse's back and
   forward buttons and Alt+Left / Alt+Right (Cmd+[ / Cmd+] on macOS) go back and
   forward through the folders you visited.
