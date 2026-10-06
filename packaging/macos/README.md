@@ -17,7 +17,7 @@ Produces `Archy.app` and wraps it in an unsigned `.dmg`.
 
 ```bash
 ./packaging/macos/build_dmg.sh
-# -> dist/Archy.app  and  dist/Archy-<version>.dmg
+# -> dist/Archy.app  and  dist/Archy-<version>-macos-<arch>.dmg
 ```
 
 Or just the app bundle:

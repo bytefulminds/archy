@@ -29,7 +29,7 @@ pyinstaller packaging\archy.spec --noconfirm
 dist\Archy\Archy.exe
 
 :: 4. Build the installer
-ISCC packaging\windows\archy.iss
+ISCC /DAppVersion=<version> packaging\windows\archy.iss
 :: -> packaging\windows\Output\Archy-<version>-setup.exe
 ```
 

@@ -13,9 +13,10 @@ ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
 
 APP="Archy"
-VERSION="$(.venv/bin/python -c 'import archy; print(archy.__version__)' 2>/dev/null || echo 0.1.0)"
+VERSION="$(sed -n 's/^__version__ = "\(.*\)"/\1/p' src/archy/__init__.py)"
+ARCH="$(uname -m)"  # arm64 (Apple Silicon) or x86_64 (Intel): one .dmg per Mac type
 DIST="$ROOT/dist"
-DMG="$DIST/${APP}-${VERSION}.dmg"
+DMG="$DIST/${APP}-${VERSION}-macos-${ARCH}.dmg"
 
 echo ">> PyInstaller .app bundle"
 pyinstaller packaging/archy.spec --noconfirm --distpath "$DIST" --workpath "$ROOT/build"

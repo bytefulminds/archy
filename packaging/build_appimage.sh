@@ -5,8 +5,9 @@
 # Run from the repo root inside the project venv:
 #   ./packaging/build_appimage.sh
 #
-# Requirements: the project installed with dev extras + pyinstaller, and
-# appimagetool on PATH (or it is downloaded to packaging/ automatically).
+# Requirements: the project installed with dev extras + pyinstaller, binutils
+# (PyInstaller needs objdump on Linux), and appimagetool (downloaded to
+# packaging/ automatically when missing).
 # The build host also needs libxcb-cursor0 available so it can be bundled
 # (Qt's xcb platform plugin needs it at runtime on the user's machine).
 set -euo pipefail
@@ -16,6 +17,7 @@ cd "$ROOT"
 
 APP="Archy"
 ARCH="${ARCH:-$(uname -m)}"
+VERSION="$(sed -n 's/^__version__ = "\(.*\)"/\1/p' src/archy/__init__.py)"
 DIST="$ROOT/dist"
 APPDIR="$ROOT/build/${APP}.AppDir"
 
@@ -56,6 +58,6 @@ fi
 
 # --appimage-extract-and-run avoids needing FUSE in the build environment (CI).
 export APPIMAGE_EXTRACT_AND_RUN=1
-OUT="$DIST/${APP}-${ARCH}.AppImage"
+OUT="$DIST/${APP}-${VERSION}-linux-${ARCH}.AppImage"
 ARCH="$ARCH" "$TOOL" "$APPDIR" "$OUT"
 echo ">> Done: $OUT"

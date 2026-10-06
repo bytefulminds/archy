@@ -30,9 +30,9 @@ pyinstaller packaging/archy.spec --noconfirm   # -> dist/Archy[.app]
 
 Then the per-OS installer:
 
-- **Linux:** `./packaging/build_appimage.sh` -> `dist/Archy-<arch>.AppImage`
-  (needs `libxcb-cursor0` on the build host; fetches `appimagetool`
-  automatically). Verified end-to-end in CI.
+- **Linux:** `./packaging/build_appimage.sh` ->
+  `dist/Archy-<version>-linux-<arch>.AppImage` (needs `binutils` and
+  `libxcb-cursor0` on the build host; fetches `appimagetool` automatically).
 - **Windows:** see [`windows/README.md`](windows/README.md) (needs
   `libarchive.dll` + Inno Setup).
 - **macOS:** see [`macos/README.md`](macos/README.md) (needs
@@ -40,10 +40,14 @@ Then the per-OS installer:
 
 ## CI
 
-`.gitlab-ci.yml` has a `build` stage:
+`.gitlab-ci.yml` has a `build` and a `release` stage:
 
-- `build:linux-appimage` runs automatically on version tags and builds the
-  AppImage in CI (manual otherwise).
+- `build:linux-appimage` runs automatically on version tags (`vX.Y.Z`): it
+  builds the AppImage and uploads it to the project's package registry. In
+  other pipelines it is a manual test build.
+- `release` creates the GitLab Release of the tag, with the changelog section
+  of that version as text and the AppImage as download
+  (`scripts/release_notes.py`).
 - `build:windows` / `build:macos` are manual jobs tagged `windows` / `macos`.
   They only start once matching GitLab runners are connected, so they never
   block a normal pipeline. Enable them by registering those runners.
@@ -63,5 +67,6 @@ source logo changes.
   warnings.
 - **macOS:** unsigned by design (no Apple Developer account); document the
   Gatekeeper right-click-Open step. Consider a universal2 build if needed.
-- **Runners:** connect Windows + macOS GitLab runners to build all three in CI.
+- **Runners:** connect Windows + macOS GitLab runners to build all three in CI
+  (for now those two are built locally and added to the release).
 - **Fonts in the wheel:** already handled (`pyproject.toml` `artifacts`).

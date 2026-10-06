@@ -1,12 +1,17 @@
 # GitLab CI for Archy.
 #
-# lint + test run on every pipeline (Linux). The build stage produces the
-# installers and only runs where it can:
-#   - build:linux-appimage runs automatically on version tags, and can be
-#     triggered by hand otherwise; it produces a portable AppImage.
-#   - build:windows / build:macos are manual jobs that need their own runners
-#     (tags: windows / macos). Until those runners exist they simply never start,
-#     so they never block or fail a pipeline.
+# lint + test run on every pipeline (Linux). On a version tag (v1.2.3) the
+# build and release stages publish the downloads:
+#   - build:linux-appimage builds the portable AppImage and uploads it to the
+#     project's generic package registry (on other pipelines it can be started
+#     by hand, as a test build, and is kept as a job artifact only).
+#   - release creates the GitLab Release for the tag, with the notes from
+#     CHANGELOG.md (scripts/release_notes.py) and a download link to the
+#     AppImage. The tag must match __version__, or the build stops.
+#   - Windows and macOS have no runners: those installers are built on a PC /
+#     Mac and added to the same release (see RELEASING.md). build:windows /
+#     build:macos stay here for when such runners exist (tags: windows /
+#     macos); until then they never start and never block a pipeline.
 #
 # The test job installs the native libarchive C library (libarchive13;
 # libarchive-c only ships the Python binding, and the LibArchiveBackend tests
@@ -23,9 +28,12 @@ stages:
   - lint
   - test
   - build
+  - release
 
 variables:
   PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+  # Where the downloads of a release live (generic package registry).
+  PACKAGE_URL: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/archy"
   QT_RUNTIME_LIBS: >-
     libgl1 libegl1 libgbm1 libdrm2 libfontconfig1 libfreetype6 libxkbcommon0
     libglib2.0-0 libdbus-1-3 libasound2 libpulse0 libgssapi-krb5-2
@@ -56,23 +64,61 @@ test:
 build:linux-appimage:
   stage: build
   rules:
-    - if: $CI_COMMIT_TAG          # auto on version tags (releases)
-    - when: manual               # otherwise: run it by hand from the UI
+    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+/
+    - when: manual               # otherwise: a test build, started by hand
       allow_failure: true
   script:
     # Runtime libs the bundled app needs (PyInstaller bundles what Qt links
-    # against from the build host), plus libxcb-cursor0 (bundled into the
-    # AppImage for the Qt xcb platform plugin) and curl (fetches appimagetool).
+    # against from the build host), libxcb-cursor0 (bundled into the AppImage
+    # for the Qt xcb platform plugin), binutils (PyInstaller needs objdump),
+    # curl (fetches appimagetool, uploads the result) and file.
     - apt-get update && apt-get install -y --no-install-recommends
-        libarchive13 $QT_RUNTIME_LIBS libxcb-cursor0 curl file desktop-file-utils
+        libarchive13 $QT_RUNTIME_LIBS libxcb-cursor0 binutils curl file desktop-file-utils
+    - |
+      if [ -n "$CI_COMMIT_TAG" ]; then
+        # Stops here when the tag and __version__ disagree.
+        python scripts/release_notes.py "$CI_COMMIT_TAG" > release_notes.md
+      fi
+      # The version without the "v", for the release job's file names.
+      echo "VERSION=$(sed -n 's/^__version__ = "\(.*\)"/\1/p' src/archy/__init__.py)" > release.env
     - pip install -e ".[dev]" pyinstaller
     - chmod +x packaging/build_appimage.sh
     - ./packaging/build_appimage.sh
+    - |
+      if [ -n "$CI_COMMIT_TAG" ]; then
+        . ./release.env
+        FILE="Archy-${VERSION}-linux-x86_64.AppImage"
+        curl --fail-with-body --header "JOB-TOKEN: $CI_JOB_TOKEN" \
+          --upload-file "dist/$FILE" "$PACKAGE_URL/$VERSION/$FILE"
+      fi
   artifacts:
     name: "Archy-AppImage"
     paths:
       - dist/*.AppImage
-    expire_in: 30 days
+      - release_notes.md
+    reports:
+      dotenv: release.env        # VERSION, for the release job
+    expire_in: 7 days            # the release download lives in the package registry
+
+release:
+  stage: release
+  image: registry.gitlab.com/gitlab-org/cli:latest
+  needs:
+    - job: build:linux-appimage
+      artifacts: true
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+/
+  script:
+    - echo "Release $CI_COMMIT_TAG"
+  release:
+    tag_name: $CI_COMMIT_TAG
+    name: "Archy ${VERSION}"
+    description: ./release_notes.md
+    assets:
+      links:
+        - name: "Archy-${VERSION}-linux-x86_64.AppImage"
+          url: "${PACKAGE_URL}/${VERSION}/Archy-${VERSION}-linux-x86_64.AppImage"
+          link_type: package
 
 build:windows:
   stage: build

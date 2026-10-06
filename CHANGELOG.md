@@ -12,6 +12,9 @@ next release.
 
 ### Added
 
+- **Downloads.** From this release on, each release on GitLab comes with an
+  installer for Windows, a .dmg for macOS (Apple Silicon and Intel) and an
+  AppImage for Linux, with the release notes from this changelog.
 - **Camera RAW previews.** CR2, CR3, NEF, ARW, RAF, ORF, RW2, PEF, DNG and
   more show the preview the camera stores inside the file (often full or half
   resolution) as thumbnail and preview, upright, with the camera details. No
@@ -49,6 +52,8 @@ next release.
 - The file name (or "No file selected") is centred in the preview header.
 - Items with the same size or date (such as folders) are ordered by name
   instead of in no particular order.
+- Settings > About includes the license text of libarchive, which the
+  installers bundle for rar and other formats.
 
 ### Fixed
 

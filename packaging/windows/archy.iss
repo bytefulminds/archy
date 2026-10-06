@@ -5,7 +5,8 @@
 ;      -> produces dist\Archy\ (a one-folder bundle with Archy.exe)
 ;   2. Put the native archive DLL next to the exe (see packaging\windows\README):
 ;      copy libarchive.dll into dist\Archy\
-;   3. Compile this script with Inno Setup 6:  ISCC packaging\windows\archy.iss
+;   3. Compile this script with Inno Setup 6:
+;        ISCC /DAppVersion=<version> packaging\windows\archy.iss
 ;      -> produces packaging\windows\Output\Archy-<ver>-setup.exe
 ;
 ; Optional file associations are behind a checkbox on the Select Tasks page
@@ -13,8 +14,12 @@
 ; app is registered as a handler for the archive types and shown in "Open with".
 
 #define AppName "Archy"
-#define AppVersion "0.1.0"
-#define AppPublisher "Archy contributors"
+; The version comes from the command line (ISCC /DAppVersion=1.2.3 ...);
+; scripts/publish_build.py passes the one in src/archy/__init__.py.
+#ifndef AppVersion
+  #define AppVersion "0.1.0"
+#endif
+#define AppPublisher "Bytefulminds"
 #define AppExeName "Archy.exe"
 ; Path to the PyInstaller onedir output, relative to this script.
 #define BundleDir "..\..\dist\Archy"

@@ -73,9 +73,8 @@ COMPONENTS: tuple[Component, ...] = (
         "libarchive",
         "BSD-2-Clause",
         "https://www.libarchive.org",
-        (),
-        "Included in some installers for rar and other formats; license: "
-        "https://github.com/libarchive/libarchive/blob/master/COPYING",
+        ("libarchive-BSD-2.txt",),
+        "Included in the installers for rar and other formats.",
     ),
     Component(
         "Pillow",
