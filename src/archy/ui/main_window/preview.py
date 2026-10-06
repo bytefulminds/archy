@@ -85,13 +85,15 @@ class PreviewMixin:
         hl.setSpacing(10)
         titles = QVBoxLayout()
         titles.setContentsMargins(0, 0, 0, 0)
-        titles.setSpacing(1)
+        titles.setSpacing(2)
+        titles.addStretch(1)  # the name (and details) centred in the header
         self._preview_title = ElidedLabel(tr("preview.none_selected"), Qt.TextElideMode.ElideMiddle)
         self._preview_title.setObjectName("previewTitle")
         self._preview_sub = ElidedLabel("")
         self._preview_sub.setObjectName("previewSub")
         titles.addWidget(self._preview_title)
         titles.addWidget(self._preview_sub)
+        titles.addStretch(1)
         hl.addLayout(titles, stretch=1)
 
         self._info_button = self._preview_action(
@@ -342,6 +344,7 @@ class PreviewMixin:
             self._details = list(source.items)
             if source.items:
                 self._preview_sub.setText(file_details.subtitle(source.items))
+                self._preview_sub.setVisible(True)
 
         source.changed.connect(show)
         QTimer.singleShot(0, show)  # after the widget is placed
@@ -393,6 +396,7 @@ class PreviewMixin:
     def _set_preview_title(self, title: str, sub: str) -> None:
         self._preview_title.setText(title)
         self._preview_sub.setText(sub)
+        self._preview_sub.setVisible(bool(sub))
         self._details = []
 
     def _set_footer(self, node: TreeNode | None) -> None:

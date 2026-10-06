@@ -19,11 +19,15 @@ next release.
 
 ### Changed
 
+- The view buttons above the file list show only their icons when the window
+  is too narrow for their labels.
+- The file name (or "No file selected") is centred in the preview header.
 - Items with the same size or date (such as folders) are ordered by name
   instead of in no particular order.
 
 ### Fixed
 
+- The icon on the active view button was hard to see on its teal background.
 - Opening another archive could show thumbnails from the previous one for
   files with the same path.
 - The grey path (in search results) and size under a selected thumbnail were

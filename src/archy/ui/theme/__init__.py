@@ -14,7 +14,7 @@ from __future__ import annotations
 # values and silently break live re-theming.
 from archy.ui.theme import palette as _palette
 from archy.ui.theme.fonts import load_fonts
-from archy.ui.theme.icons import symbol_icon
+from archy.ui.theme.icons import symbol_icon, toggle_icon
 from archy.ui.theme.palette import dark_palette, ratio_color, set_accent
 from archy.ui.theme.stylesheet import stylesheet
 
@@ -27,6 +27,7 @@ __all__ = [
     "set_accent",
     "stylesheet",
     "symbol_icon",
+    "toggle_icon",
 ]
 
 

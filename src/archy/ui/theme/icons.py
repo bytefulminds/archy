@@ -112,6 +112,17 @@ def _render_svg_icon(inner: str, size: int, color: str) -> QIcon:
     return QIcon(pixmap)
 
 
+def toggle_icon(name: str, size: int, off_color: str, on_color: str) -> QIcon:
+    """An icon for a checkable button: ``off_color`` normally, ``on_color``
+    while checked (so it stays visible on the accent fill)."""
+    icon = QIcon()
+    for color, state in ((off_color, QIcon.State.Off), (on_color, QIcon.State.On)):
+        pixmap = symbol_icon(name, size, color).pixmap(size, size)
+        icon.addPixmap(pixmap, QIcon.Mode.Normal, state)
+        icon.addPixmap(pixmap, QIcon.Mode.Active, state)
+    return icon
+
+
 def symbol_icon(name: str, size: int = 18, color: str | None = None) -> QIcon:
     """A QIcon rendered from the inline line-SVG icon set, tinted to a color."""
     key_name = _ICON_ALIASES.get(name, name)

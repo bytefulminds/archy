@@ -33,6 +33,19 @@ from archy.ui.main_window.constants import FOOTER_HEIGHT
 from archy.ui.settings import view_labels
 
 
+class _ListToolbar(QFrame):
+    """The bar above the file list; tells the window when its width changes,
+    so the view switch can drop its labels when they no longer fit."""
+
+    def __init__(self, on_resize) -> None:  # noqa: ANN001
+        super().__init__()
+        self._on_resize = on_resize
+
+    def resizeEvent(self, event) -> None:  # noqa: ANN001, N802 - Qt override
+        super().resizeEvent(event)
+        self._on_resize()
+
+
 class FilePanelMixin:
     """Builds the file list panel (table / compact / grid) and status strip.
 
@@ -152,7 +165,7 @@ class FilePanelMixin:
         self._status_msg.setText(text)
 
     def _build_list_toolbar(self) -> QWidget:
-        bar = QFrame()
+        bar = _ListToolbar(self._fit_view_switch)
         bar.setObjectName("listToolbar")
         row = QHBoxLayout(bar)
         row.setContentsMargins(14, 0, 10, 0)
@@ -187,7 +200,7 @@ class FilePanelMixin:
             button.setCheckable(True)
             button.setAutoRaise(True)
             button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
-            button.setIcon(theme.symbol_icon(icon_name, 18, theme.TEXT_SECONDARY))
+            button.setIcon(theme.toggle_icon(icon_name, 18, theme.TEXT_SECONDARY, theme.ACCENT_ON))
             button.setIconSize(QSize(18, 18))
             button.setText(label)
             button.clicked.connect(lambda _c=False, i=index: self._switch_view(i))
@@ -195,7 +208,41 @@ class FilePanelMixin:
             sl.addWidget(button)
         self._view_group.button(3).setChecked(True)
         row.addWidget(switch)
+        self._list_toolbar = bar
+        self._view_switch = switch
+        self._view_switch_full = 0  # width with labels, measured once shown
         return bar
+
+    def _fit_view_switch(self) -> None:
+        """Labels on the view buttons when they fit, icons only (with the
+        label as tooltip) in a narrow window, instead of cut-off labels."""
+        bar = getattr(self, "_list_toolbar", None)
+        if bar is None:
+            return
+        buttons = self._view_group.buttons()
+        with_text = buttons[0].toolButtonStyle() == Qt.ToolButtonStyle.ToolButtonTextBesideIcon
+        if with_text:
+            self._view_switch_full = self._view_switch.sizeHint().width()
+        if not self._view_switch_full:
+            return
+        margins = bar.layout().contentsMargins()
+        room = (
+            bar.width()
+            - margins.left()
+            - margins.right()
+            - self._sort_button.sizeHint().width()
+            - 2 * bar.layout().spacing()
+        )
+        fits = self._view_switch_full <= room
+        if fits != with_text:
+            style = (
+                Qt.ToolButtonStyle.ToolButtonTextBesideIcon
+                if fits
+                else Qt.ToolButtonStyle.ToolButtonIconOnly
+            )
+            for button in buttons:
+                button.setToolButtonStyle(style)
+                button.setToolTip("" if fits else button.text())
 
     # ------------------------------------------------------------- sorting
     # Every view shows the same sorted proxy, so one sort serves them all. The
