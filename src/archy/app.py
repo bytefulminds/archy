@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import sys
 
 
@@ -84,6 +85,35 @@ def _apply_app_icon(app: object) -> None:
         app.setWindowIcon(QIcon(str(path)))  # type: ignore[attr-defined]
 
 
+def _qt_message(mode: object, context: object, message: str) -> None:
+    """Qt's own warnings, written the way Qt writes them, except that one
+    from an image reader also names the file (its path in the archive): a
+    photo cut short ("Corrupt JPEG data: premature end of data segment")
+    still shows, but which one it is is otherwise anyone's guess."""
+    category = getattr(context, "category", None) or "default"
+    if category.startswith("qt.gui.imageio"):
+        from archy.services.image_decode import current_label
+
+        label = current_label()
+        if label:
+            message = f"{message} [{label}]"
+    line = message if category == "default" else f"{category}: {message}"
+    stream = sys.stderr
+    if stream is not None:  # a windowed Windows build has none
+        with contextlib.suppress(Exception):
+            stream.write(line + "\n")
+            stream.flush()
+
+
+def _install_message_handler(app: object) -> None:
+    """Route Qt's messages through _qt_message while Archy runs; Qt's own
+    handler again once it quits (nothing calls into Python at exit then)."""
+    from PySide6.QtCore import qInstallMessageHandler
+
+    qInstallMessageHandler(_qt_message)
+    app.aboutToQuit.connect(lambda: qInstallMessageHandler(None))  # type: ignore[attr-defined]
+
+
 def _application_class() -> type:
     """QApplication that takes macOS QFileOpenEvents (Open With, a drop on the
     dock icon) in its own event() instead of through an application-wide
@@ -162,6 +192,7 @@ def run() -> int:
     app.setApplicationName("Archy")
     app.setOrganizationName("Archy")
     _apply_app_icon(app)
+    _install_message_handler(app)
     _hang_log = os.environ.get("ARCHY_HANG_LOG")
     if _hang_log:
         _install_hang_watchdog(_hang_log)

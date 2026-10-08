@@ -66,7 +66,11 @@ The Archy logo is wired in: `packaging/archy.ico` (Windows exe + installer),
 `packaging/archy.icns` (macOS .app), `packaging/appimage/archy.png` (AppImage +
 desktop entry), and `src/archy/resources/icons/archy.png` (the in-app header
 mark). All are generated from `docs/Archy_square.png`; regenerate them if the
-source logo changes.
+source logo changes. The macOS icons (`archy.icns` and
+`src/archy/resources/icons/archy_macos.png`, the Dock icon when running from
+source) follow Apple's icon grid, a rounded square of 824 of 1024 pixels with a
+soft shadow, so Archy is as large as the other apps in the Dock:
+`python scripts/make_icons.py` makes both.
 
 ## Still to do for the installers
 

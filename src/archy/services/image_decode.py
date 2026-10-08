@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import contextlib
 import io
+import threading
+from collections.abc import Iterator
 
 from PySide6.QtCore import QBuffer, QByteArray, QSize, Qt
 from PySide6.QtGui import QImage, QImageReader
@@ -22,12 +25,36 @@ HEIF_EXT = {".heic", ".heif", ".hif", ".avif"}
 _HEIF_BRANDS = {b"heic", b"heix", b"heim", b"heis", b"hevc", b"hevx", b"mif1", b"msf1"}
 _AVIF_BRANDS = {b"avif", b"avis"}
 
+# Which file is being decoded on this thread, so a warning from Qt's image
+# readers (a JPEG cut short: "Corrupt JPEG data: premature end of data
+# segment") can name it (see app._install_message_handler).
+_decoding = threading.local()
+
+
+@contextlib.contextmanager
+def describing(label: str) -> Iterator[None]:
+    """Name the file (its path in the archive) decoded inside this block."""
+    previous = getattr(_decoding, "label", None)
+    _decoding.label = label
+    try:
+        yield
+    finally:
+        _decoding.label = previous
+
+
+def current_label() -> str | None:
+    """The file being decoded on this thread, if a caller named it."""
+    return getattr(_decoding, "label", None)
+
 
 def decode_image(data: bytes, box: QSize | None = None, name: str = "") -> QImage:
     """The image in ``data``, upright, fitted inside ``box`` when given (never
     enlarged). A null QImage when it cannot be decoded. ``name`` picks the
     camera-RAW and Photoshop readers (services/raw_decode.py); Qt would
     otherwise read a RAW's tiny TIFF thumbnail."""
+    if current_label() is None and name:
+        with describing(name):
+            return decode_image(data, box, name)
     from archy.services import raw_decode
 
     if raw_decode.is_raw(name):

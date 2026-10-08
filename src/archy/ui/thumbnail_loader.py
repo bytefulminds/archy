@@ -22,7 +22,7 @@ from archy.core import memory
 from archy.core.backend import ArchiveBackend, ArchiveEntry
 from archy.core.secure_temp import disk_reserve
 from archy.services import doc_thumbs
-from archy.services.image_decode import decode_image
+from archy.services.image_decode import decode_image, describing
 from archy.services.preview import PreviewKind, kind_for_name
 
 # Thumbnail generation for the grid views. Images are decoded straight to
@@ -501,15 +501,16 @@ class _ThumbTask(QRunnable):
                 return  # folder changed while queued; skip the (possibly slow) work
             image = QImage()
             try:
-                kind = kind_for_name(self._entry.name)
-                if self._data is not None:
-                    image = _thumb_from_bytes(self._data, self._entry.name, kind)
-                elif kind is PreviewKind.VIDEO:
-                    image = self._video_thumbnail() or QImage()
-                elif self._backend is not None:
-                    limit = doc_thumbs.TEXT_BYTES if kind is PreviewKind.TEXT else None
-                    data = self._backend.read_bytes(self._entry, cache=False, max_bytes=limit)
-                    image = _thumb_from_bytes(data, self._entry.name, kind)
+                with describing(self._entry.path):  # a Qt warning then names the file
+                    kind = kind_for_name(self._entry.name)
+                    if self._data is not None:
+                        image = _thumb_from_bytes(self._data, self._entry.name, kind)
+                    elif kind is PreviewKind.VIDEO:
+                        image = self._video_thumbnail() or QImage()
+                    elif self._backend is not None:
+                        limit = doc_thumbs.TEXT_BYTES if kind is PreviewKind.TEXT else None
+                        data = self._backend.read_bytes(self._entry, cache=False, max_bytes=limit)
+                        image = _thumb_from_bytes(data, self._entry.name, kind)
             except Exception:  # noqa: BLE001 - a bad file just gets no thumbnail
                 image = QImage()
             self._data = None  # let the (possibly large) bytes go before signalling

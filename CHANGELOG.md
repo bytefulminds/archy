@@ -33,6 +33,9 @@ next release.
   the first video thumbnail is made.
 - Web pages (HTML) and data files such as JSON, XML and YAML count as
   documents in the sidebar.
+- A warning about a damaged image (such as "Corrupt JPEG data: premature end
+  of data segment", shown when Archy runs from a terminal) now names the file
+  and its folder in the archive, so you can find the photo.
 
 ### Fixed
 
@@ -46,6 +49,8 @@ next release.
   zoom level, in full screen and the slideshow too.
 - Files of the "other" kind (such as web pages) had a camera badge in the
   thumbnail views, as if they were photos.
+- The macOS app icon was a little larger than the icons of other apps in the
+  Dock; it now follows Apple's icon grid.
 
 ## [0.2.1] - 2026-10-06
 

@@ -31,6 +31,7 @@ from archy.i18n import tr
 from archy.services import file_details
 from archy.services.encrypted_device import EncryptedBlobDevice, ReaderDevice
 from archy.services.formatting import format_modified, format_ratio, format_size
+from archy.services.image_decode import describing
 from archy.services.preview import PreviewKind, kind_for_name
 from archy.services.providers import (
     build_preview_widget,
@@ -847,7 +848,8 @@ class PreviewMixin:
             full_bleed = self._req_kind in (PreviewKind.IMAGE, PreviewKind.PDF)
             self._set_fullscreenable(self._req_kind in _MEDIA_KINDS)
             self._set_nav_enabled(True)
-            widget = build_preview_widget(node.name, data)
+            with describing(node.path):  # a Qt warning then names the file
+                widget = build_preview_widget(node.name, data)
             self._set_preview_widget(widget, full_bleed=full_bleed)
             if self._req_kind is PreviewKind.IMAGE and not hasattr(widget, "_zx_image_view"):
                 self._slideshow_skip_failed(node)
