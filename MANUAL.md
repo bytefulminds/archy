@@ -43,7 +43,10 @@ without freezing the window.
 Walk the folders of an archive like a normal folder. Four views: **list**,
 **compact**, **thumbnails** and **large thumbnails**. In the thumbnail views
 the tiles grow with the width of the list until another column fits, so a
-row is always filled. The sidebar filters the archive by type: images,
+row is always filled. Besides photos and videos, documents get a thumbnail
+too: the top of a PDF's first page, a web page or Markdown file as a small
+page, the first lines of a text or code file. A file Archy cannot preview
+keeps a dimmed icon, so you see at a glance what opens in the preview. The sidebar filters the archive by type: images,
 videos, documents and other files.
 
 - **Search the whole archive** by name or path with **Ctrl+Shift+F**; the

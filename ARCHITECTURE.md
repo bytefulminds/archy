@@ -142,6 +142,10 @@ third-party components with their licenses, and the notices text built from
   released), then pi-heif (decode-only pillow-heif) / Pillow for HEIC and AVIF where Qt has no
   plugin (Qt reads HEIC only on macOS). A `name` routes camera RAW and PSD
   to `raw_decode.py` first (Qt would read a RAW's tiny TIFF thumbnail).
+- `doc_thumbs.py` - thumbnails of documents, made on the thumbnail workers:
+  the top of a PDF's first page (QtPdf), HTML/Markdown drawn with a
+  QTextDocument that loads nothing the page refers to, and the first lines of
+  a text file. Only the first 16 KB of a text file is read.
 - `raw_decode.py` - camera RAW: the file is scanned for embedded JPEG streams,
   their size read from the JPEG frame header, and the largest one Qt decodes
   is used (lossless SOF3 sensor data is skipped), turned upright by the RAW's

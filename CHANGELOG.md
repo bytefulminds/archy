@@ -12,6 +12,10 @@ next release.
 
 ### Added
 
+- **Thumbnails of documents.** In the thumbnail views, PDFs show the top of
+  their first page, web pages and Markdown files a small rendered page, and
+  text and code files their first lines. Files Archy cannot preview keep a
+  dimmed icon, so you see at a glance what opens in the preview.
 - **Starting screen.** Archy shows a small card with its logo while it starts,
   so a slow (cold) start no longer looks like nothing is happening.
 
@@ -21,6 +25,13 @@ next release.
   another column fits, instead of leaving an empty band at the right.
 - Archy starts faster: the video library for thumbnails is only loaded when
   the first video thumbnail is made.
+- Web pages (HTML) and data files such as JSON, XML and YAML count as
+  documents in the sidebar.
+
+### Fixed
+
+- Files of the "other" kind (such as web pages) had a camera badge in the
+  thumbnail views, as if they were photos.
 
 ## [0.2.1] - 2026-10-06
 

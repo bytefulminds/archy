@@ -1279,3 +1279,38 @@ def test_splash_shows_while_starting_and_closes_with_the_window() -> None:
     app.processEvents()
     assert not splash.isVisible()
     window.close()
+
+
+def test_documents_get_thumbnails_and_html_counts_as_a_document(tmp_path) -> None:  # noqa: ANN001
+    import time
+    import zipfile
+
+    from archy.core.tree import TreeNode
+    from archy.ui import theme
+    from archy.ui.archive_model import category_of, icon_of
+    from archy.ui.main_window import MainWindow
+
+    archive = tmp_path / "docs.zip"
+    with zipfile.ZipFile(archive, "w") as z:
+        z.writestr("index.html", "<html><body><h1>Welcome</h1></body></html>")
+        z.writestr("README.md", "# Archy\n\nLook inside archives.\n")
+        z.writestr("notes.txt", "Shopping list\n- bread\n")
+        z.writestr("report.docx", b"PK\x03\x04 not really")
+    page = TreeNode(name="index.html", path="index.html", is_dir=False)
+    assert category_of(page) == "document" and icon_of(page) == "doc"
+
+    app = _app()
+    theme.apply(app)
+    window = MainWindow()
+    window.resize(1000, 700)
+    window.show()
+    _open(window, archive)
+    window._switch_view(2)
+    deadline = time.monotonic() + 15
+    want = {"index.html", "README.md", "notes.txt"}
+    while not want <= set(window._thumbs._cache) and time.monotonic() < deadline:
+        app.processEvents()
+        time.sleep(0.01)
+    assert want <= set(window._thumbs._cache)
+    assert "report.docx" not in window._thumbs._cache  # no preview: stays an icon
+    window.close()

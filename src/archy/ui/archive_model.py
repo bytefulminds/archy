@@ -41,8 +41,23 @@ _DOC_EXT = {
     ".odp",
     ".rtf",
     ".csv",
+    ".tsv",
     ".md",
+    ".markdown",
+    ".rst",
     ".txt",
+    ".log",
+    # Web pages and data files: read like documents, previewed as one.
+    ".html",
+    ".htm",
+    ".xhtml",
+    ".xml",
+    ".json",
+    ".jsonl",
+    ".geojson",
+    ".yaml",
+    ".yml",
+    ".toml",
 }
 
 # Shared empty index for default parent args (avoids a call in defaults; B008).

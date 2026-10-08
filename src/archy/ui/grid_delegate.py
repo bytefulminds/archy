@@ -6,6 +6,7 @@ from PySide6.QtWidgets import QListView, QStyle, QStyledItemDelegate
 
 from archy.i18n import tr
 from archy.services.formatting import format_size
+from archy.services.preview import PreviewKind, kind_for_name
 from archy.ui import theme
 from archy.ui.archive_model import NODE_ROLE, category_of, icon_of
 
@@ -138,12 +139,18 @@ class GridDelegate(QStyledItemDelegate):
             self._draw_cover(painter, pixmap, image_rect, top_path)
         else:
             painter.fillPath(top_path, QColor(255, 255, 255, 8))
-            self._draw_center_icon(painter, icon_of(node), image_rect, selected)
+            # Brighter for a file Archy can preview (music, a video without a
+            # frame yet), dim for a type it cannot show.
+            previewable = kind_for_name(node.name) is not PreviewKind.UNSUPPORTED
+            self._draw_center_icon(painter, icon_of(node), image_rect, selected or previewable)
 
         if cat == "video" and pixmap is not None and not pixmap.isNull():
             self._draw_play(painter, image_rect)
-        if cat in _BADGE_COLOR:
-            self._draw_type_badge(painter, image_rect, cat)
+        has_picture = pixmap is not None and not pixmap.isNull()
+        # A document's or text file's thumbnail is its page: a badge would only
+        # cover it (a video keeps its badge, next to the play button).
+        if cat in _BADGE_COLOR and (cat == "video" or not has_picture):
+            self._draw_type_badge(painter, image_rect, cat, icon_of(node))
 
         # Top highlight line just inside the card top edge.
         painter.setPen(QColor(255, 255, 255, 16))
@@ -194,8 +201,8 @@ class GridDelegate(QStyledItemDelegate):
         painter.drawPixmap(target, scaled, QRect(sx, sy, target.width(), target.height()))
         painter.restore()
 
-    def _draw_center_icon(self, painter, icon_name: str, rect: QRectF, selected: bool) -> None:  # noqa: ANN001, E501
-        color = theme.TEXT_SECONDARY if selected else theme.TEXT_DISABLED
+    def _draw_center_icon(self, painter, icon_name: str, rect: QRectF, bright: bool) -> None:  # noqa: ANN001, E501
+        color = theme.TEXT_SECONDARY if bright else theme.TEXT_DISABLED
         icon = theme.symbol_icon(icon_name, self._icon, color)
         cx = int(rect.center().x() - self._icon / 2)
         cy = int(rect.center().y() - self._icon / 2)
@@ -212,14 +219,13 @@ class GridDelegate(QStyledItemDelegate):
             painter, QRect(int(c.x() - glyph / 2 + 1), int(c.y() - glyph / 2), glyph, glyph)
         )
 
-    def _draw_type_badge(self, painter, rect: QRectF, cat: str) -> None:  # noqa: ANN001
+    def _draw_type_badge(self, painter, rect: QRectF, cat: str, icon_name: str) -> None:  # noqa: ANN001, E501
         size = 20
         x = int(rect.left()) + 7
         y = int(rect.top()) + 7
         painter.setPen(QColor(255, 255, 255, 26))
         painter.setBrush(QColor(10, 14, 18, 140))
         painter.drawRoundedRect(QRect(x, y, size, size), 7, 7)
-        icon_name = {"video": "video", "document": "doc", "other": "camera"}.get(cat, "doc")
         theme.symbol_icon(icon_name, 12, _BADGE_COLOR[cat]).paint(
             painter, QRect(x + 4, y + 4, 12, 12)
         )
