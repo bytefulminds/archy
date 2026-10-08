@@ -30,6 +30,9 @@ next release.
 
 ### Fixed
 
+- Large photos looked noisy (grainy, with stripes in fine patterns) in the
+  preview until you zoomed in; they are now scaled down smoothly at every
+  zoom level, in full screen and the slideshow too.
 - Files of the "other" kind (such as web pages) had a camera badge in the
   thumbnail views, as if they were photos.
 

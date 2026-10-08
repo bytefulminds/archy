@@ -1314,3 +1314,34 @@ def test_documents_get_thumbnails_and_html_counts_as_a_document(tmp_path) -> Non
     assert want <= set(window._thumbs._cache)
     assert "report.docx" not in window._thumbs._cache  # no preview: stays an icon
     window.close()
+
+
+def test_large_photo_is_drawn_smoothly_when_scaled_down() -> None:
+    # Fine black/white stripes far below screen resolution must average out
+    # to grey (mipmaps), not turn into black/white noise (aliasing).
+    from PySide6.QtGui import QColor, QImage, QPainter, QPen
+
+    from archy.ui.image_view import ImageView
+
+    app = _app()
+    image = QImage(4000, 3000, QImage.Format.Format_RGB32)
+    image.fill(QColor("white"))
+    painter = QPainter(image)
+    painter.setPen(QPen(QColor("black"), 2))
+    for x in range(0, 4000, 5):
+        painter.drawLine(x, 0, x, 3000)
+    painter.end()
+    view = ImageView()
+    view.resize(420, 320)
+    view.show()
+    view.set_image(image)
+    app.processEvents()
+    assert view.zoom_percent() < 15
+    shot = view.viewport().grab().toImage()
+    middle = [
+        QColor(shot.pixel(x, y)).lightness()
+        for x in range(shot.width() // 3, 2 * shot.width() // 3, 3)
+        for y in range(shot.height() // 3, 2 * shot.height() // 3, 3)
+    ]
+    assert max(middle) - min(middle) < 100, (min(middle), max(middle))  # noise: 0..255
+    view.close()
