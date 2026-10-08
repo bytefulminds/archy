@@ -1345,3 +1345,29 @@ def test_large_photo_is_drawn_smoothly_when_scaled_down() -> None:
     ]
     assert max(middle) - min(middle) < 100, (min(middle), max(middle))  # noise: 0..255
     view.close()
+
+
+def test_folder_loading_shows_it_is_busy_before_the_first_file() -> None:
+    from archy.ui import theme
+    from archy.ui.main_window import MainWindow
+
+    app = _app()
+    theme.apply(app)
+    window = MainWindow()
+    window.show()
+    window._on_prefetch_started(300)
+    bar = window._prefetch_bar
+    assert window._prefetch_label.isVisible()
+    assert (bar.minimum(), bar.maximum()) == (0, 0)  # a busy bar, moving on its own
+    window._on_prefetch_activity(-1, -1)  # still busy, nothing known
+    assert (bar.minimum(), bar.maximum()) == (0, 0)
+    window._prefetch_since -= 75  # busy for a while: the time is shown
+    window._on_prefetch_activity(-1, -1)
+    assert window._prefetch_label.text().endswith("1:15")
+    window._on_prefetch_activity(512 * 1024 * 1024, 2 * 1024 * 1024 * 1024)
+    assert (bar.maximum(), bar.value()) == (1000, 250)  # follows the bytes read
+    assert window._prefetch_label.text().endswith("25%")
+    assert "512" in window._prefetch_label.toolTip()  # the amounts on hover
+    window._on_prefetch_done()
+    assert not window._prefetch_label.isVisible()
+    window.close()

@@ -419,6 +419,7 @@
     "slideshow.faster": "Shorter per photo",
     "slideshow.seconds_tip": "Time per photo",
     "slideshow.stop": "Stop (Esc)",
-    "splash.starting": "Version {version} · starting"
+    "splash.starting": "Version {version} · starting",
+    "progress.folder_bytes": "{read} of {size} unpacked"
   }
 }

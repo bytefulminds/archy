@@ -173,6 +173,7 @@ class MainWindow(
         self._prefetcher.done.connect(self._on_thumbnail_ready)
         self._prefetcher.started.connect(self._on_prefetch_started)
         self._prefetcher.progress.connect(self._on_prefetch_progress)
+        self._prefetcher.activity.connect(self._on_prefetch_activity)
         self._prefetcher.done.connect(self._on_prefetch_done)
 
         # Background extraction.

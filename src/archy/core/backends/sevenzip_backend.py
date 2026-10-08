@@ -99,6 +99,38 @@ class _Exit:
         return self._context.__exit__(*exc)
 
 
+class _CountingFile(io.FileIO):
+    """The archive file, counting the bytes read from it: how far a long
+    decode has come (see SevenZipBackend.group_progress). One int, written by
+    the decoding thread and only read elsewhere."""
+
+    consumed = 0
+
+    def readinto(self, buffer) -> int | None:  # noqa: ANN001
+        count = super().readinto(buffer)
+        if count:
+            self.consumed += count
+        return count
+
+
+def _packed_total(archive: object, wanted: set[str]) -> int:
+    """Compressed bytes of the blocks that hold any of ``wanted`` (names as in
+    the archive): what decoding them reads from disk at most."""
+    header = getattr(archive, "header", None)
+    streams = getattr(header, "main_streams", None)
+    if streams is None:
+        return 0
+    sizes = [int(size) for size in streams.packinfo.packsizes]
+    index = total = 0
+    for folder in streams.unpackinfo.folders:
+        packed = int(getattr(folder, "num_packedstreams", None) or len(folder.packed_indices))
+        names = {str(f.filename).replace("\\", "/") for f in getattr(folder, "files", None) or ()}
+        if names & wanted:
+            total += sum(sizes[index : index + packed])
+        index += packed
+    return total
+
+
 def _open_7z(path: object, password: str | None):  # noqa: ANN202 - py7zr.SevenZipFile
     """Open a 7z for reading, the way Archy needs it.
 
@@ -113,7 +145,8 @@ def _open_7z(path: object, password: str | None):  # noqa: ANN202 - py7zr.SevenZ
     import py7zr
 
     _limit_decode_chunks()
-    fh = open(path, "rb")  # noqa: SIM115 - closed by the archive's close()
+    raw = _CountingFile(os.fspath(path), "rb")  # type: ignore[arg-type]
+    fh = io.BufferedReader(raw)  # closed by the archive's close()
     try:
         archive = py7zr.SevenZipFile(fh, mode="r", password=password)
     except BaseException:
@@ -128,6 +161,7 @@ def _open_7z(path: object, password: str | None):  # noqa: ANN202 - py7zr.SevenZ
             fh.close()
 
     archive.close = close
+    archive.archy_raw = raw  # type: ignore[attr-defined] - read progress
     return archive
 
 
@@ -247,6 +281,7 @@ class SevenZipBackend(ArchiveBackend):
         # decrypting) the whole index: 100,000 files took ~2 s per open, which
         # every single preview or thumbnail paid again.
         self._shared = None
+        self._group: tuple[_CountingFile, int, int] | None = None  # see group_progress
         self._shared_password: str | None = None
         # Renames are staged as a name map (new name -> name in the archive),
         # not as bytes: renaming a folder of large videos must not read them
@@ -576,7 +611,7 @@ class SevenZipBackend(ArchiveBackend):
             archive = shared.__enter__()
         except Exception:  # noqa: BLE001 - prefetch is best-effort
             return out
-        with _Exit(shared):
+        with _Exit(shared), self._tracking_group(archive, wanted):
             with contextlib.suppress(Exception):  # CRCs are an extra safety net
                 for info in archive.files:
                     crc = getattr(info, "crc32", None)
@@ -593,6 +628,27 @@ class SevenZipBackend(ArchiveBackend):
                 with contextlib.suppress(Exception):
                     deliver(filename, product.take())
         return out
+
+    @contextlib.contextmanager
+    def _tracking_group(self, archive: object, wanted: set[str]) -> Iterator[None]:
+        """Make group_progress() report this decode while it runs."""
+        raw = getattr(archive, "archy_raw", None)
+        total = 0
+        with contextlib.suppress(Exception):
+            total = _packed_total(archive, wanted)
+        if raw is not None and total > 0:
+            self._group = (raw, raw.consumed, total)
+        try:
+            yield
+        finally:
+            self._group = None
+
+    def group_progress(self) -> tuple[int, int] | None:
+        group = self._group
+        if group is None:
+            return None
+        raw, start, total = group
+        return min(total, max(0, raw.consumed - start)), total
 
     def _stream_uncached(self, entry: ArchiveEntry, sink) -> None:  # noqa: ANN001
         # py7zr writes the decoded member in chunks into the IO its factory

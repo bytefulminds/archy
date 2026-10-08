@@ -484,6 +484,12 @@ class ArchiveBackend(ABC):
         with self._read_lock:
             return path in self._prefetching
 
+    def group_progress(self) -> tuple[int, int] | None:
+        """(bytes done, bytes total) of a read_group() decode that is running,
+        for backends that can tell (a solid 7z: the compressed bytes read of
+        the blocks it decodes); None otherwise. Safe to call from any thread."""
+        return None
+
     def read_group(
         self,
         entries: Iterable[ArchiveEntry],

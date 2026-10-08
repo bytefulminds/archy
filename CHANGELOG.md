@@ -30,6 +30,11 @@ next release.
 
 ### Fixed
 
+- Opening a folder in a very large solid 7z could look frozen: the bar under
+  the file list stayed at "0 / N" until the first file was unpacked, which can
+  take minutes, or stopped at a file such as "7 / 90" for as long. It now
+  follows the data unpacked so far (a percentage, the amounts when you point
+  at it), or moves as a busy bar with the time it has been busy.
 - Large photos looked noisy (grainy, with stripes in fine patterns) in the
   preview until you zoomed in; they are now scaled down smoothly at every
   zoom level, in full screen and the slideshow too.
