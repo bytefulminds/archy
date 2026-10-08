@@ -418,6 +418,7 @@
     "slideshow.slower": "Longer per photo",
     "slideshow.faster": "Shorter per photo",
     "slideshow.seconds_tip": "Time per photo",
-    "slideshow.stop": "Stop (Esc)"
+    "slideshow.stop": "Stop (Esc)",
+    "splash.starting": "Version {version} · starting"
   }
 }

@@ -67,11 +67,14 @@ _PRIO_PRELOAD = 0
 
 
 def _pyav_available() -> bool:
+    """Whether PyAV is installed, without importing it: that takes seconds on a
+    cold start and is only needed for the first video thumbnail."""
+    import importlib.util
+
     try:
-        import av  # noqa: F401
-    except Exception:  # noqa: BLE001 - optional dependency
+        return importlib.util.find_spec("av") is not None
+    except (ImportError, ValueError):
         return False
-    return True
 
 
 # A whole-video read from a solid archive briefly holds the bytes about three

@@ -10,6 +10,18 @@ next release.
 
 ## [Unreleased]
 
+### Added
+
+- **Starting screen.** Archy shows a small card with its logo while it starts,
+  so a slow (cold) start no longer looks like nothing is happening.
+
+### Changed
+
+- The tiles in the thumbnail views grow with the width of the list until
+  another column fits, instead of leaving an empty band at the right.
+- Archy starts faster: the video library for thumbnails is only loaded when
+  the first video thumbnail is made.
+
 ## [0.2.1] - 2026-10-06
 
 The first release with installers for macOS and Windows next to the Linux

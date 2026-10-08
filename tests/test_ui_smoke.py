@@ -1218,3 +1218,64 @@ def test_slideshow_hides_the_cursor_when_the_mouse_rests() -> None:
     window._hide_bar()
     window.close()  # leaving the slideshow always brings the cursor back
     assert not window.cursor_hidden and QGuiApplication.overrideCursor() is before
+
+
+def test_thumbnail_tiles_grow_to_fill_the_row(tmp_path) -> None:  # noqa: ANN001
+    import time
+    import zipfile
+
+    from archy.ui import theme
+    from archy.ui.grid_delegate import MAX_GROW
+    from archy.ui.main_window import MainWindow
+
+    archive = tmp_path / "photos.zip"
+    with zipfile.ZipFile(archive, "w") as z:
+        for i in range(30):
+            z.writestr(f"{i:02}.png", _png("#336699"))
+    app = _app()
+    theme.apply(app)
+    window = MainWindow()
+    window.resize(1200, 800)
+    window.show()
+    _open(window, archive)
+    for view_index, view in ((2, window._grid), (3, window._large)):
+        window._switch_view(view_index)
+        base_w = view.itemDelegate()._base[0]
+        widths = set()
+        for width in (950, 1080, 1210, 1500):
+            window.resize(width, 800)
+            for _ in range(10):
+                app.processEvents()
+                time.sleep(0.005)
+            first = view.visualRect(window._proxy.index(0, 0))
+            row = [
+                view.visualRect(window._proxy.index(i, 0))
+                for i in range(30)
+                if view.visualRect(window._proxy.index(i, 0)).top() == first.top()
+            ]
+            gap = view.viewport().width() - row[-1].right()
+            # The row is filled: what is left is less than the spacing plus a
+            # scroll bar, never most of a tile (unless the tiles are as large
+            # as they may get, with one or two columns).
+            capped = first.width() == int(base_w * MAX_GROW)
+            assert gap < 30 or capped, (width, gap, first.width())
+            assert base_w <= first.width() <= base_w * MAX_GROW
+            widths.add(first.width())
+        assert len(widths) > 1  # the tiles follow the width
+    window.close()
+
+
+def test_splash_shows_while_starting_and_closes_with_the_window() -> None:
+    from PySide6.QtWidgets import QWidget
+
+    from archy.ui import splash as splash_module
+
+    app = _app()
+    splash = splash_module.show_splash(app)
+    assert splash.isVisible() and not splash.pixmap().isNull()
+    window = QWidget()
+    window.show()
+    splash.finish(window)
+    app.processEvents()
+    assert not splash.isVisible()
+    window.close()

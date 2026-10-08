@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import QRect, QRectF, QSize, Qt
 from PySide6.QtGui import QColor, QFont, QLinearGradient, QPainter, QPainterPath
-from PySide6.QtWidgets import QStyle, QStyledItemDelegate
+from PySide6.QtWidgets import QListView, QStyle, QStyledItemDelegate
 
 from archy.i18n import tr
 from archy.services.formatting import format_size
@@ -16,6 +16,11 @@ from archy.ui.archive_model import NODE_ROLE, category_of, icon_of
 #  - selection = accent border + 2px ring + a soft teal glow (not a flat ring);
 #  - a 3D gradient check badge top-right, a rounded type badge top-left, and a
 #    play badge + duration for video.
+
+# Tiles grow with the width of the view, up to this factor of their base size
+# (with one or two columns they would get very large, and blurry: thumbnails
+# are decoded at 240 px).
+MAX_GROW = 1.6
 
 # Type badge accent colors (mockup: video=warning, doc/other=error/muted).
 _BADGE_COLOR = {
@@ -35,16 +40,46 @@ class GridDelegate(QStyledItemDelegate):
         # instead of the size, so a deep hit stays identifiable.
         self._search_mode = False
         self._compact = False
+        self._spacing = 6
         self._apply_metrics()
 
     def _apply_metrics(self) -> None:
         base = (204, 190, 56, 46) if self._large else (156, 150, 44, 42)
         if self._compact:
             w, h, icon, label = base
-            self._cell_w, self._cell_h = int(w * 0.82), int(h * 0.82)
-            self._icon, self._label_h = int(icon * 0.85), int(label * 0.9)
+            self._base = (int(w * 0.82), int(h * 0.82), int(icon * 0.85), int(label * 0.9))
         else:
-            self._cell_w, self._cell_h, self._icon, self._label_h = base
+            self._base = base
+        self._width = getattr(self, "_width", 0)
+        self._scale(self._fit_width(self._width))
+
+    def _scale(self, cell_w: int) -> None:
+        base_w, base_h, icon, label = self._base
+        factor = cell_w / base_w
+        self._cell_w = cell_w
+        # The picture grows with the width; the name strip below stays as it is.
+        self._cell_h = round((base_h - label) * factor) + label
+        self._icon = round(icon * min(factor, 1.3))
+        self._label_h = label
+
+    def _fit_width(self, width: int) -> int:
+        """The tile width for a view ``width`` px wide: as many columns as fit
+        at the base size, sharing what is left over (up to MAX_GROW)."""
+        base_w = self._base[0]
+        spacing = self._spacing
+        if width <= 0:
+            return base_w
+        room = width - spacing - 2  # Qt wraps a tile that would end exactly at the edge
+        columns = max(1, room // (base_w + spacing))
+        cell_w = room // columns - spacing
+        return max(base_w, min(cell_w, int(base_w * MAX_GROW)))
+
+    def fit(self, width: int, spacing: int) -> bool:
+        """Size the tiles for a view ``width`` px wide; True when they changed."""
+        self._width, self._spacing = width, spacing
+        before = (self._cell_w, self._cell_h)
+        self._scale(self._fit_width(width))
+        return (self._cell_w, self._cell_h) != before
 
     def set_search_mode(self, on: bool) -> None:
         self._search_mode = on
@@ -240,3 +275,26 @@ class GridDelegate(QStyledItemDelegate):
         if not node.is_dir:
             return format_size(node.size)
         return None
+
+
+class TileGridView(QListView):
+    """The thumbnail views: a wrapping icon grid whose tiles grow with the
+    width, so the row is filled instead of leaving an empty band at the right
+    until the next column fits."""
+
+    def resizeEvent(self, event) -> None:  # noqa: ANN001, N802 - Qt override
+        super().resizeEvent(event)
+        self.fit_tiles()
+
+    def fit_tiles(self) -> None:
+        delegate = self.itemDelegate()
+        if not isinstance(delegate, GridDelegate):
+            return
+        # Measured as if the scroll bar were there, so it appearing or going
+        # away (more or fewer rows) does not change the tiles and reflow again.
+        scroll = self.verticalScrollBar()
+        reserve = 0 if scroll.isVisible() else scroll.sizeHint().width()
+        width = self.viewport().width() - reserve
+        if delegate.fit(width, self.spacing()):
+            self.scheduleDelayedItemsLayout()
+            self.viewport().update()

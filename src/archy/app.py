@@ -146,7 +146,6 @@ def run() -> int:
     from PySide6.QtCore import QLoggingCategory
 
     from archy.ui import theme
-    from archy.ui.main_window import MainWindow
     from archy.ui.settings import Settings
 
     # Silence Qt's informational multimedia/ffmpeg category chatter
@@ -175,10 +174,22 @@ def run() -> int:
     i18n.set_language(i18n.resolve(_startup.language, system_languages()))
     # Apply the user's chosen accent pair before building the theme/widgets.
     theme.set_accent(_startup.accent, _startup.accent2)
+    theme.load_fonts()
+    # Something on screen right away: building the window (and, on a cold
+    # start, loading its modules from disk) can take a few seconds.
+    splash = None
+    if "--no-splash" not in sys.argv[1:]:
+        from archy.ui.splash import show_splash
+
+        splash = show_splash(app)
     theme.apply(app)
+
+    from archy.ui.main_window import MainWindow
 
     window = MainWindow()
     window.show()
+    if splash is not None:
+        splash.finish(window)
 
     # File associations (app side): open an archive passed on the command line
     # (Windows/Linux "Open with", or `archy <file>`), and one delivered via a

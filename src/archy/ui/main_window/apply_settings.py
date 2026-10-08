@@ -52,6 +52,7 @@ class SettingsMixin:
         compact = self._settings.compact_density
         for view in (self._grid, self._large):
             view.itemDelegate().set_compact(compact)
+            view.fit_tiles()
             view.scheduleDelayedItemsLayout()
         row_h = 24 if compact else 28
         self._table.verticalHeader().setDefaultSectionSize(row_h)

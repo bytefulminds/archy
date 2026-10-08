@@ -28,7 +28,7 @@ from archy.i18n import tr
 from archy.services.formatting import format_modified
 from archy.services.preview import PreviewKind, kind_for_name
 from archy.ui import theme
-from archy.ui.grid_delegate import GridDelegate
+from archy.ui.grid_delegate import GridDelegate, TileGridView
 from archy.ui.main_window.constants import FOOTER_HEIGHT
 from archy.ui.settings import view_labels
 
@@ -390,7 +390,7 @@ class FilePanelMixin:
         return view
 
     def _build_grid_view(self, *, large: bool) -> QListView:
-        view = QListView()
+        view = TileGridView()
         view.setModel(self._proxy)
         view.setModelColumn(0)
         view.setSelectionModel(self._selection)
