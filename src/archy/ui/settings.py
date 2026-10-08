@@ -116,7 +116,7 @@ class Settings:
     @property
     def sort_column(self) -> int:
         v = self._get_int("view/sort_column")
-        return v if 0 <= v <= 5 else 0
+        return v if 0 <= v <= 6 else 0  # 6: the timestamp in the name
 
     @property
     def sort_descending(self) -> bool:

@@ -773,6 +773,73 @@ def test_pdf_preview_knows_its_pages_title_and_author() -> None:
     widget._zx_cleanup()
 
 
+def test_sorting_by_the_timestamp_in_the_name(tmp_path) -> None:  # noqa: ANN001
+    import time
+    import zipfile
+
+    from PySide6.QtCore import QCoreApplication
+
+    from archy.ui import theme
+    from archy.ui.main_window import MainWindow
+
+    archive = tmp_path / "stamps.zip"
+    with zipfile.ZipFile(archive, "w") as z:
+        z.writestr("sub/inside.txt", b"x")
+        z.writestr("1696512000--b.jpg", b"x")  # Oct 2023
+        z.writestr("999999999_a.jpg", b"x")  # Sep 2001: shorter, sorts last by name
+        z.writestr("1700000000123_c.jpg", b"x")  # Nov 2023, in milliseconds
+        z.writestr("zeta.txt", b"x")
+        z.writestr("Alpha.txt", b"x")
+
+    app = _app()
+    theme.apply(app)
+    org, name = QCoreApplication.organizationName(), QCoreApplication.applicationName()
+    QCoreApplication.setOrganizationName("ArchyTest")
+    QCoreApplication.setApplicationName("ArchyTestStamps")
+    try:
+        from archy.ui.settings import Settings
+
+        Settings()._q.clear()
+        window = MainWindow()
+        window.show()
+        _open(window, archive)
+
+        def names() -> list[str]:
+            proxy = window._proxy
+            return [window._node_at(proxy.index(r, 0)).name for r in range(proxy.rowCount())]
+
+        window._sort_by(6, False)
+        # Folders first; then names with a time, oldest first; then the rest by name.
+        assert names() == [
+            "sub",
+            "999999999_a.jpg",
+            "1696512000--b.jpg",
+            "1700000000123_c.jpg",
+            "Alpha.txt",
+            "zeta.txt",
+        ]
+        assert window._sort_column_actions[6].isChecked()
+        assert window._table.isColumnHidden(6)  # only a sort choice
+        window._sort_by(None, True)  # newest first, the others still below
+        assert names() == [
+            "sub",
+            "1700000000123_c.jpg",
+            "1696512000--b.jpg",
+            "999999999_a.jpg",
+            "zeta.txt",
+            "Alpha.txt",
+        ]
+        again = MainWindow()  # remembered
+        assert again._settings.sort_column == 6
+        again.close()
+        window.close()
+        time.sleep(0.01)
+        Settings()._q.clear()
+    finally:
+        QCoreApplication.setOrganizationName(org)
+        QCoreApplication.setApplicationName(name)
+
+
 def test_sorting_applies_to_every_view_keeps_folders_first_and_is_remembered(tmp_path) -> None:  # noqa: ANN001
     import time
     import zipfile

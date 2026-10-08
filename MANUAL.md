@@ -62,6 +62,11 @@ videos, documents and other files.
   the sort button next to the views (in the list view also by clicking a
   column header). Folders always come first, in search results too. Archy
   remembers the sort for next time.
+- **Sort by a timestamp in the name:** for files whose name starts with a Unix
+  time, such as `1696512000--beach.jpg` or `1696512000123_IMG_0042.jpg`
+  (seconds or milliseconds, followed by `--`, `_` or the extension), choose
+  *Timestamp in name* in the sort menu. Those files come first, oldest to
+  newest (or the other way round), and the files without one follow by name.
 
 **Archives inside an archive** (experimental): double-click a zip, 7z or tar
 (also .tar.gz) inside the archive to open it like a folder. It is read from

@@ -28,6 +28,7 @@ from archy.i18n import tr
 from archy.services.formatting import format_modified
 from archy.services.preview import PreviewKind, kind_for_name
 from archy.ui import theme
+from archy.ui.archive_model import NAME_TIME_COLUMN
 from archy.ui.grid_delegate import GridDelegate, TileGridView
 from archy.ui.main_window.constants import FOOTER_HEIGHT
 from archy.ui.settings import view_labels
@@ -253,6 +254,7 @@ class FilePanelMixin:
         (4, "column.type"),
         (1, "column.size"),
         (5, "column.modified"),
+        (6, "column.name_time"),  # a Unix time at the start of the name
     )
     _SORT_LABELS = (
         "column.name",
@@ -261,6 +263,7 @@ class FilePanelMixin:
         "column.ratio",
         "column.type",
         "column.modified",
+        "column.name_time",
     )
 
     def _build_sort_button(self) -> QToolButton:
@@ -344,6 +347,7 @@ class FilePanelMixin:
         header = table.horizontalHeader()
         self._on_sort_changed(header.sortIndicatorSection(), header.sortIndicatorOrder())
         self._sort_ready = True
+        table.setColumnHidden(NAME_TIME_COLUMN, True)  # sorts; nothing to show for most
         table.verticalHeader().setVisible(False)
         table.horizontalHeader().setStretchLastSection(False)
         table.doubleClicked.connect(self._on_double_clicked)

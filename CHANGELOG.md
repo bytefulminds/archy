@@ -12,6 +12,10 @@ next release.
 
 ### Added
 
+- **Sort by a timestamp in the name.** Files whose name starts with a Unix
+  time (such as `1696512000--beach.jpg` or `1696512000123_IMG_0042.jpg`) can
+  be sorted on that time, oldest or newest first; files without one follow,
+  sorted by name. Choose *Timestamp in name* in the sort menu.
 - **Thumbnails of documents.** In the thumbnail views, PDFs show the top of
   their first page, web pages and Markdown files a small rendered page, and
   text and code files their first lines. Files Archy cannot preview keep a

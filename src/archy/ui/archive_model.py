@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+from datetime import datetime
+
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, QSortFilterProxyModel, Qt
 
 from archy.core.tree import TreeNode
 from archy.i18n import tr
 from archy.services.formatting import format_modified, format_ratio, format_size
+from archy.services.name_stamp import name_timestamp
 from archy.services.preview import PreviewKind, kind_for_name
 from archy.ui import theme
 
@@ -20,8 +23,10 @@ _COLUMNS = (
     "column.ratio",
     "column.type",
     "column.modified",
+    "column.name_time",  # hidden in the table; a sort choice in the sort menu
 )
-_NAME, _SIZE, _COMPRESSED, _RATIO, _TYPE, _MODIFIED = range(6)
+_NAME, _SIZE, _COMPRESSED, _RATIO, _TYPE, _MODIFIED, _NAME_TIME = range(7)
+NAME_TIME_COLUMN = _NAME_TIME
 
 SORT_ROLE = int(Qt.ItemDataRole.UserRole) + 1
 IS_DIR_ROLE = int(Qt.ItemDataRole.UserRole) + 2
@@ -165,6 +170,9 @@ class ArchiveTableModel(QAbstractTableModel):
                 return format_ratio(node.size, compressed)
             if col == _MODIFIED:
                 return format_modified(node.modified)
+            if col == _NAME_TIME:
+                stamp = name_timestamp(node.name)
+                return "" if stamp is None else format_modified(datetime.fromtimestamp(stamp))
             return None
 
         if role == SORT_ROLE:
@@ -182,6 +190,10 @@ class ArchiveTableModel(QAbstractTableModel):
                 return _type_label(node).casefold()
             if col == _MODIFIED:
                 return node.modified.timestamp() if node.modified is not None else 0.0
+            if col == _NAME_TIME:
+                # Names with a time first, oldest to newest; the others by name.
+                stamp = name_timestamp(node.name)
+                return (stamp is not None, stamp or 0.0, node.name.casefold())
             return None
 
         if role == IS_DIR_ROLE:
@@ -268,6 +280,10 @@ class FolderSortProxy(QSortFilterProxyModel):
 
         lv = model.data(left, SORT_ROLE)
         rv = model.data(right, SORT_ROLE)
+        if left.column() == _NAME_TIME and lv[0] != rv[0]:
+            # Names with a time above the others, in either order (like folders).
+            top = self.sortOrder() == Qt.SortOrder.AscendingOrder
+            return lv[0] if top else rv[0]
         if lv == rv and left.column() != 0:
             # Equal sizes or dates (folders have none): A to Z by name, also
             # when sorting descending, so the order is stable and readable.
