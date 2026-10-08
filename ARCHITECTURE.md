@@ -60,6 +60,8 @@ third-party components with their licenses, and the notices text built from
   - `sevenzip_backend.py` (`SevenZipBackend`) - read + write for 7z (`py7zr`).
   - `sevenzip_direct.py` - direct reads for 7z files made with Store (no
     compression, encrypted or not); see "Stored 7z: direct reads" below.
+  - `sevenzip_solid.py` - Archy's own reader for compressed solid blocks
+    (LZMA2/LZMA, encrypted or not); see "Compressed solid 7z" below.
   - `sevenzip_writer.py` - the 7z save: a streaming rewrite next to the
     original, checked before it replaces the original (see "Saving a 7z").
   - `tar_backend.py` (`TarBackend`) - read-only tar/tar.gz/tar.bz2/tar.xz via
@@ -231,7 +233,37 @@ click never waits for a folder pass. The folder pass itself reads stored files
 the same way, in archive order. Decryption works in place in one buffer: every
 extra copy holds the GIL, which the UI thread needs. A partial read or a stream has no CRC to
 catch a wrong password, so the password is first proved once on the smallest
-encrypted file. Compressed blocks keep going through py7zr.
+encrypted file. Compressed blocks go through `sevenzip_solid.py` (below) or
+py7zr.
+
+### Compressed solid 7z (`core/backends/sevenzip_solid.py`)
+
+In a compressed solid block every file sits in one LZMA2/LZMA stream, and py7zr
+decodes (and CRC-checks) everything before a file to reach it, from the block
+start, for every read. For blocks made of one LZMA2 or LZMA coder, optionally
+behind 7zAES (`SolidIndex.build()`; others such as BCJ, PPMd or BZip2 keep
+going through py7zr), `SolidReader` decodes with the stdlib `lzma` module in raw
+mode and avoids most of that work, on archives as they are:
+
+- **Dictionary resets.** 7-Zip compressing with several threads splits an LZMA2
+  stream into pieces that each start with an empty dictionary (every 4x the
+  dictionary size). Decoding can start at any of them. `_Resets` finds them by
+  walking the LZMA2 chunk headers (a few bytes every 64 KB, nothing decoded;
+  with AES each header is decrypted on its own, CBC allows that) up to the
+  offset a read needs, and keeps them for the session. A stream with no reset
+  after `max(4x dictionary, 256 MB)` was made by one thread: the walk stops.
+- **Parked decoders.** After a read the decoder stays where it stopped (up to
+  three, within a memory budget for their dictionaries), so the next folder
+  further on continues from there. A file more than 64 MB past a decoder is
+  read by another one, so a block sorted by file type (all photos, then all
+  text files) gets a decoder per kind that only moves forward.
+- For every read the reader picks the closest start at or before the file: a
+  parked decoder, a reset point, or the block start. Bytes decoded only to get
+  past them are not CRC-checked; every file handed over is.
+
+Reads still run under `_io_lock`. `group_progress()` then reports decoded bytes
+(from the chosen start to the last wanted file). A read that fails in an
+unexpected way (not a wrong password) falls back to py7zr.
 
 Any change here must preserve these properties: do not add per-file disk writes,
 do not read whole large entries into RAM on the UI thread, and keep the

@@ -21,6 +21,12 @@ next release.
 
 ### Changed
 
+- **Faster folders in large solid 7z archives**, without repacking them.
+  Archy now unpacks compressed solid blocks itself: in an archive made by
+  7-Zip with several threads it starts at the nearest point before a folder
+  instead of at the start of the block (about ten times faster in our tests),
+  it continues where it stopped when you move on to the next folder, and it
+  no longer checks data it only unpacks to get past it.
 - The tiles in the thumbnail views grow with the width of the list until
   another column fits, instead of leaving an empty band at the right.
 - Archy starts faster: the video library for thumbnails is only loaded when

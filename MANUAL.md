@@ -262,9 +262,19 @@ On macOS, read Cmd for Ctrl.
 
 How a 7z was created matters a lot for browsing speed. In a *solid* archive,
 many files are compressed together as one block, so reading one file means
-decompressing everything before it in that block. Archy reads a whole folder in
-one pass to soften this, but a folder spread over several large blocks is still
-slow.
+decompressing everything before it in that block. Archy softens this for
+archives as they are, without repacking:
+
+- It reads a whole folder in one pass.
+- When the archive was made by 7-Zip with several threads (the default on a
+  modern computer), the block has points where decoding can start fresh. Archy
+  finds them and starts at the nearest one before the folder, instead of at the
+  start of the block.
+- It keeps its place in a block after a folder, so moving on to the next folder
+  continues from there.
+
+Even so, the first folder deep inside a large block of an older or
+single-threaded archive still takes a while.
 
 For a backup you want to browse, choose in 7-Zip:
 
