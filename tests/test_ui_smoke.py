@@ -1368,6 +1368,9 @@ def test_folder_loading_shows_it_is_busy_before_the_first_file() -> None:
     assert (bar.maximum(), bar.value()) == (1000, 250)  # follows the bytes read
     assert window._prefetch_label.text().endswith("25%")
     assert "512" in window._prefetch_label.toolTip()  # the amounts on hover
+    # Through the signal, with a block far over 2 GB (a 32-bit int overflowed).
+    window._prefetcher.activity.emit(3 * 1024**3, 12 * 1024**3)
+    assert (bar.maximum(), bar.value()) == (1000, 250)
     window._on_prefetch_done()
     assert not window._prefetch_label.isVisible()
     window.close()

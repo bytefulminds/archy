@@ -35,7 +35,8 @@ class FolderPrefetcher(QObject):
     # While a pass runs, a few times a second: (bytes done, bytes total) of the
     # compressed data it decodes when the backend can tell, else (-1, -1). Also
     # the heartbeat that keeps the indicator alive before any file is done.
-    activity = Signal(int, int)
+    # 64-bit: a block of a big archive is easily more than 2 GB.
+    activity = Signal("qint64", "qint64")
     _done = Signal(int, int)  # worker -> GUI thread (count buffered, pass token)
     _progress = Signal(int, int, int)  # worker -> GUI thread (done, total, pass token)
 
