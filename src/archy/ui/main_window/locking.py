@@ -20,7 +20,8 @@ from archy.ui.extract_dialog import SaveProgressDialog
 # equally encrypted version next to the original and replaces the original
 # only after checking it (core/backends/sevenzip_writer.py). An encrypted,
 # compressed 7z stays locked: rewriting it means compressing everything again,
-# which takes hours on a large archive.
+# which takes hours on a large archive. An encrypted zip can always be
+# unlocked: a save copies the entries that stay as they are (zip_backend).
 #
 # Saving a 7z runs on a worker thread with a progress window (SaveWorker);
 # that window only appears when the save takes longer than a moment.
@@ -31,6 +32,10 @@ LOCKED = "locked"  # read-only, can be unlocked
 FIXED = "fixed"  # read-only, cannot be unlocked
 UNLOCKED = "unlocked"  # was locked, editing allowed for this session
 NONE = "none"  # freely editable (no lock shown)
+
+
+def _is_zip(backend: object) -> bool:
+    return getattr(backend, "archive_format", "") == "zip"
 
 
 def _qt(html: str) -> str:
@@ -86,8 +91,11 @@ class LockMixin:
             return (
                 FIXED,
                 tr("lock.read_only"),
-                tr("lock.zip_text"),
+                tr("lock.format_readonly", kind=tr("lock.format_this")),
             )
+        if _is_zip(backend):
+            # A zip save copies what stays as it is: cheap, whatever its size.
+            return LOCKED, tr("lock.read_only"), tr("lock.zip_locked_text")
         profile = self._lock_profile()
         if profile is not None and not profile.store_only:
             return (
@@ -151,25 +159,33 @@ class LockMixin:
             self._update_lock()
             return
         free = shutil.disk_usage(Path(backend.path).parent).free
-        if not self._confirm_unlock(profile, free):
+        if not self._confirm_unlock(profile, free, zip_archive=_is_zip(backend)):
             return
         self._edit_unlocked = True
         self._set_status(tr("lock.status_unlocked", name=self._archive_label))
         self._after_lock_change()
 
-    def _confirm_unlock(self, profile, free: int) -> bool:  # noqa: ANN001
+    def _confirm_unlock(self, profile, free: int, *, zip_archive: bool = False) -> bool:  # noqa: ANN001
         """Explain what unlocking and saving mean; True when the user agrees."""
         from PySide6.QtWidgets import QLabel
 
         size = format_size(profile.packed_size)
-        names = tr("lock.dialog_names") if profile.header_encrypted else ""
-        html = tr(
-            "lock.dialog_html",
-            name=html_escape(self._archive_label),
-            size=size,
-            names=names,
-            free=format_size(free),
-        )
+        if zip_archive:
+            html = tr(
+                "lock.zip_dialog_html",
+                name=html_escape(self._archive_label),
+                size=size,
+                free=format_size(free),
+            )
+        else:
+            names = tr("lock.dialog_names") if profile.header_encrypted else ""
+            html = tr(
+                "lock.dialog_html",
+                name=html_escape(self._archive_label),
+                size=size,
+                names=names,
+                free=format_size(free),
+            )
         dlg = soft_dialog.SoftDialog(self, tr("lock.dialog_title"))
         label = QLabel(html)
         label.setObjectName("dialogText")

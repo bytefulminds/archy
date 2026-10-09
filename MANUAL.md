@@ -198,15 +198,19 @@ Changes are collected first and written when you press **Save** (**Ctrl+S**).
 Archy then writes a complete new version next to the original, checks it, and
 only then puts it in place of the original, so a failed or cancelled save never
 damages your archive. A 7z keeps its password, encrypted file names, Store or
-compression, separate blocks and file times. Rar and the other libarchive
-formats are read-only.
+compression, separate blocks and file times. In a zip, the files you did not
+change are copied as they are, so a save takes about as long as copying the
+archive. Rar and the other libarchive formats are read-only.
 
 **The edit lock.** Archives that Archy only reads show a lock next to their
 name; its tooltip says why. Encrypted archives start locked, so nothing changes
-by accident. An encrypted 7z made with *Store* can be unlocked on purpose with
-one click; a dialog first explains what saving will do. An encrypted,
-compressed 7z stays locked, because saving it would mean compressing
-everything again.
+by accident. An encrypted zip, and an encrypted 7z made with *Store*, can be
+unlocked on purpose with one click; a dialog first explains what saving will
+do. In an encrypted zip the files you did not change stay exactly as they were
+(ZipCrypto or AES); new and changed files are encrypted with AES-256 and the
+same password. Note that the zip tools built into Windows and macOS cannot open
+AES-encrypted files; 7-Zip, WinZip and Archy can. An encrypted, compressed 7z
+stays locked, because saving it would mean compressing everything again.
 
 ## Privacy and temporary files
 

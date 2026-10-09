@@ -12,6 +12,10 @@ next release.
 
 ### Added
 
+- **Edit encrypted zip archives.** An encrypted zip can now be unlocked (click
+  the lock) to add, rename and delete files. Files you did not change are
+  copied as they are, still encrypted with their own method; new and changed
+  files are encrypted with AES-256 and the same password.
 - **Previews of Word, Excel and PowerPoint files.** A .docx shows as a page
   with its headings, lists, tables and pictures, a .pptx as one card per slide,
   and a .xlsx as a table per sheet with the values Excel last calculated. Their
@@ -35,6 +39,10 @@ next release.
 
 ### Changed
 
+- Saving a zip is much faster: files that did not change are copied as they
+  are instead of being unpacked and packed again, a renamed file is no longer
+  read into memory, and a large save shows its progress and can be cancelled.
+  The new version is checked before it replaces the original.
 - Going back up a folder (with the path, Back or Up) keeps your place: the
   folder you came out of is selected and scrolled into view, instead of the
   list starting at the top again. Coming back into a folder puts the cursor

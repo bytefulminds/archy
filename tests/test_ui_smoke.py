@@ -1637,3 +1637,44 @@ def test_macos_window_is_ready_for_web_pages_from_the_start(monkeypatch) -> None
     assert other.findChild(QWidget, "webSurfaceKeeper") is None
     window.close()
     other.close()
+
+
+def test_an_encrypted_zip_can_be_unlocked_edited_and_saved(tmp_path, monkeypatch) -> None:  # noqa: ANN001
+    import pyzipper
+
+    from archy.ui import theme
+    from archy.ui.main_window import MainWindow, locking
+
+    archive = tmp_path / "secret.zip"
+    with pyzipper.AESZipFile(archive, "w", compression=pyzipper.ZIP_DEFLATED) as zf:
+        zf.setpassword(b"geheim")
+        zf.setencryption(pyzipper.WZ_AES, nbits=256)
+        zf.writestr("photos/a.jpg", b"jpeg bytes" * 100)
+        zf.writestr("notes.txt", b"hello")
+    app = _app()
+    theme.apply(app)
+    window = MainWindow()
+    window.show()
+    _open(window, archive)
+    state, _heading, text = window._lock_state()
+    assert state == locking.LOCKED and "AES-256" in text
+    assert not window._can_edit()
+
+    monkeypatch.setattr(window, "_prompt_password", lambda _message: "geheim")
+    asked: list[bool] = []
+    monkeypatch.setattr(
+        window, "_confirm_unlock", lambda *_a, **k: asked.append(k.get("zip_archive")) or True
+    )
+    window._unlock_for_editing()
+    assert asked == [True] and window._can_edit()
+    window._backend.write_bytes("notes/new.txt", b"added in Archy")
+    window._backend.rename("notes.txt", "renamed.txt")
+    window.save_archive(blocking=True)
+    app.processEvents()
+    assert not window._backend.has_unsaved_changes
+    with pyzipper.AESZipFile(archive) as zf:
+        zf.setpassword(b"geheim")
+        assert zf.read("notes/new.txt") == b"added in Archy"
+        assert zf.read("renamed.txt") == b"hello"
+        assert all(i.flag_bits & 0x1 for i in zf.infolist())
+    window.close()

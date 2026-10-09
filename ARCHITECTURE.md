@@ -355,7 +355,9 @@ shows a lock next to the archive name whenever an archive is read-only, with a
 tooltip that explains why:
 
 - not writable at all (rar, tar, ...): a fixed lock;
-- an encrypted zip: a fixed lock (saving encrypted zips is not supported yet);
+- an encrypted zip: a lock the user can open (the dialog explains that new and
+  changed files are encrypted with AES-256, which the zip tools built into
+  Windows and macOS cannot open). A zip save is always cheap, see below;
 - an encrypted, compressed 7z: a fixed lock (a rewrite would recompress
   everything, hours on a big archive);
 - an encrypted 7z made with Store: a lock the user can open on purpose. A dialog
@@ -367,6 +369,22 @@ tooltip that explains why:
 kind of 7z it is comes from `SevenZipBackend.edit_profile()` (Store or
 compressed, encrypted names, solid), probed once on the worker thread that
 opens the archive.
+
+## Saving a zip (`core/backends/zip_backend.py`)
+
+`ZipBackend.save()` writes a new archive next to the original (`.zxtmp`),
+checks it and swaps it in with `os.replace`, on the save worker with progress
+and cancel (`save_plan()` makes the window use it). Entries that did not
+change are copied raw by `_copy_raw`: local header (with the new name for a
+rename), data and data descriptor, byte for byte, then appended to the
+writer's central directory as a copied ZipInfo. So they stay compressed and,
+in an encrypted zip, encrypted with their own method; a save costs a copy and
+never needs the password for them. Renames are a name map (`_moved`), so a
+renamed file is never read. New and changed files are written with pyzipper:
+Deflate, and with the session password AES-256 (folder entries are left
+unencrypted). The check reads the new central directory, opens every copied
+entry (which verifies its local header, and with AES the password check
+value) and reads back every written one.
 
 ## Saving a 7z (`core/backends/sevenzip_writer.py`)
 

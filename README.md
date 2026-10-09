@@ -78,7 +78,8 @@ folder or everything, with a clear progress window, or simply drag files out.
 
 Add, rename and delete files in zip and 7z archives; your original is only
 replaced after the new version has been written and checked. Encrypted
-archives start locked so nothing changes by accident. Previews are made in
+archives start locked so nothing changes by accident, and an encrypted zip or
+a 7z made with Store can be unlocked for editing. Previews are made in
 memory, passwords are never stored, and nothing is loaded from the internet.
 
 <p align="center">

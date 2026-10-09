@@ -54,6 +54,7 @@ class EditProfile:
     solid: bool  # several files share a block
     packed_size: int  # size of the archive on disk
     unpacked_size: int  # sum of the file sizes
+    format: str = "7z"  # "zip": the edit lock explains a zip save (zip_backend)
 
     @property
     def rewrite_is_cheap(self) -> bool:

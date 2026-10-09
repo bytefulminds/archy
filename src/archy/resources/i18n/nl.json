@@ -202,7 +202,6 @@
     "lock.format_readonly": "Archy kan {kind}-archieven lezen maar niet schrijven.",
     "lock.unlocked_heading": "Ontgrendeld: bewerken toegestaan",
     "lock.unlocked_text": "Wijzigingen worden pas geschreven als je op Opslaan klikt. Klik op het slot om het archief weer te vergrendelen.",
-    "lock.zip_text": "Dit archief is versleuteld. Versleutelde zip-archieven kan Archy nog niet bewerken.",
     "lock.compressed_text": "Dit archief is versleuteld en gecomprimeerd. Bewerken betekent dat Archy alles opnieuw moet comprimeren, wat bij een groot archief uren duurt. Daarom blijft het vergrendeld.\n\nTip: een backup die je in Archy wilt bewerken, maak je in 7-Zip met compressieniveau Opslaan (Store).",
     "lock.size_unknown": "even groot",
     "lock.locked_text": "Dit archief is versleuteld en daarom vergrendeld, zodat er niets per ongeluk verandert.\n\nKlik om te ontgrendelen. Daarna kun je bestanden toevoegen, hernoemen en verwijderen. Bij Opslaan schrijft Archy een nieuwe versie ({size}) naast het origineel, met hetzelfde wachtwoord en versleutelde bestandsnamen, en vervangt het origineel pas als die versie is gecontroleerd.",
@@ -427,6 +426,8 @@
     "preview.office_encrypted": "{name}\n\nDit document is in Office zelf met een wachtwoord beveiligd; dat kan Archy nog niet openen",
     "preview.office_failed": "{name}\n\nDit document kon niet worden gelezen",
     "preview.sheet_cut": "Alleen de eerste {rows} rijen en {columns} kolommen worden getoond.",
-    "preview.sheet_empty": "Deze werkmap heeft geen bladen met inhoud"
+    "preview.sheet_empty": "Deze werkmap heeft geen bladen met inhoud",
+    "lock.zip_locked_text": "Dit archief is versleuteld en daarom vergrendeld, zodat er niet per ongeluk iets verandert.\n\nKlik om het te ontgrendelen. Je kunt dan bestanden toevoegen, hernoemen en verwijderen. Bij Opslaan schrijft Archy een nieuwe versie naast het origineel: bestanden die je niet hebt gewijzigd worden ongewijzigd en nog steeds versleuteld overgenomen; nieuwe en gewijzigde bestanden worden versleuteld met AES-256 en hetzelfde wachtwoord. Het origineel wordt pas vervangen nadat de nieuwe versie is gecontroleerd.",
+    "lock.zip_dialog_html": "<p><b>{name}</b> is versleuteld en alleen-lezen.</p><p>Na het ontgrendelen kun je bestanden toevoegen, hernoemen en verwijderen. Er verandert niets in het archief tot je op <b>Opslaan</b> klikt.</p><p>Bij Opslaan:</p><ul style='margin-left:-20px'><li>schrijft Archy een nieuwe versie ({size}) naast het origineel, waarbij bestanden die je niet hebt gewijzigd ongewijzigd en nog steeds versleuteld worden overgenomen,</li><li>versleutelt Archy nieuwe en gewijzigde bestanden met AES-256 en hetzelfde wachtwoord. Sommige programma's, zoals de zip-functies die in Windows en macOS zitten, kunnen AES niet openen; 7-Zip, WinZip en Archy wel,</li><li>en vervangt Archy het origineel pas nadat de nieuwe versie is gecontroleerd. Gaat er iets mis, dan blijft het origineel ongewijzigd.</li></ul><p>Dit vraagt even {size} vrije ruimte op dezelfde schijf (nu vrij: {free}).</p>"
   }
 }
