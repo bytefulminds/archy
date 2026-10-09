@@ -30,9 +30,6 @@ DOWNLOADS = """\
   older: right-click Archy and choose *Open*).
 - **Linux**: `Archy-{version}-linux-x86_64.AppImage`. Make it executable
   (`chmod +x`) and run it.
-
-Not every file may be there right away: the Windows and macOS builds are added
-after the Linux one.
 """
 
 
