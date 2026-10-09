@@ -391,7 +391,9 @@ class FilePanelMixin:
         header = table.horizontalHeader()
         self._on_sort_changed(header.sortIndicatorSection(), header.sortIndicatorOrder())
         self._sort_ready = True
-        table.setColumnHidden(NAME_TIME_COLUMN, True)  # sorts; nothing to show for most
+        # Only shown for a folder with such names (a sort choice in any case).
+        table.setColumnHidden(NAME_TIME_COLUMN, True)
+        self._model.modelReset.connect(self._update_name_time_column)
         table.verticalHeader().setVisible(False)
         table.horizontalHeader().setStretchLastSection(False)
         table.doubleClicked.connect(self._on_double_clicked)
@@ -412,6 +414,7 @@ class FilePanelMixin:
             3: "100%",
             4: "JPEG",
             5: format_modified(datetime(2026, 12, 31, 23, 59)),
+            NAME_TIME_COLUMN: format_modified(datetime(2026, 12, 31, 23, 59)),
         }
         for col, sample in samples.items():
             title = str(self._model.headerData(col, Qt.Orientation.Horizontal) or "")
@@ -419,6 +422,10 @@ class FilePanelMixin:
             header.setSectionResizeMode(col, QHeaderView.ResizeMode.Interactive)
             header.resizeSection(col, width + 28)
         return table
+
+    def _update_name_time_column(self) -> None:
+        """The "Timestamp in name" column, only where names have one."""
+        self._table.setColumnHidden(NAME_TIME_COLUMN, not self._model.has_name_times)
 
     def _build_compact_view(self) -> QListView:
         view = QListView()

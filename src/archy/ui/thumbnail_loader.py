@@ -100,7 +100,7 @@ def _decode_image_thumb(data: bytes, name: str = "") -> QImage:
 
 
 # Made from the file's bytes (the folder pass can hand these over).
-_FROM_BYTES = (PreviewKind.IMAGE, PreviewKind.TEXT, PreviewKind.PDF)
+_FROM_BYTES = (PreviewKind.IMAGE, PreviewKind.TEXT, PreviewKind.PDF, PreviewKind.OFFICE)
 
 
 def _thumb_from_bytes(data: bytes, name: str, kind: PreviewKind) -> QImage:
@@ -110,6 +110,8 @@ def _thumb_from_bytes(data: bytes, name: str, kind: PreviewKind) -> QImage:
         return doc_thumbs.text_thumbnail(data, name)
     if kind is PreviewKind.PDF:
         return doc_thumbs.pdf_thumbnail(data)
+    if kind is PreviewKind.OFFICE:
+        return doc_thumbs.office_thumbnail(data, name)
     return _decode_image_thumb(data, name)
 
 
@@ -428,7 +430,7 @@ class ThumbnailLoader(QObject):
             return int(entry.size or 0) <= _MAX_SOURCE_BYTES
         if kind is PreviewKind.TEXT:
             return True  # only the first part is read (doc_thumbs.TEXT_BYTES)
-        if kind is PreviewKind.PDF:
+        if kind in (PreviewKind.PDF, PreviewKind.OFFICE):
             return int(entry.size or 0) <= doc_thumbs.MAX_PDF_BYTES
         if kind is PreviewKind.VIDEO and self._av and self._backend is not None:
             # A video frame needs PyAV. On a seek-friendly backend (zip) a prefix

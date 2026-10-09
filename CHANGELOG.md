@@ -12,13 +12,20 @@ next release.
 
 ### Added
 
+- **Previews of Word, Excel and PowerPoint files.** A .docx shows as a page
+  with its headings, lists, tables and pictures, a .pptx as one card per slide,
+  and a .xlsx as a table per sheet with the values Excel last calculated. Their
+  thumbnails show the picture Office saved with the file, or a small page of
+  their text. Macros are never run.
 - **Show the selection.** A round button at the far left above the list
   scrolls the selected file back into view after you scrolled away in a long
   folder.
 - **Sort by a timestamp in the name.** Files whose name starts with a Unix
-  time (such as `1696512000--beach.jpg` or `1696512000123_IMG_0042.jpg`) can
-  be sorted on that time, oldest or newest first; files without one follow,
-  sorted by name. Choose *Timestamp in name* in the sort menu.
+  time (such as `1696512000--beach.jpg`, `1696512000-beach.jpg` or
+  `1696512000123_IMG_0042.jpg`) can be sorted on that time, oldest or newest
+  first; files without one follow, sorted by name. Choose *Timestamp in name*
+  in the sort menu. In a folder with such names the list view shows the time
+  as a date in its own column, and pointing at a name shows it too.
 - **Thumbnails of documents.** In the thumbnail views, PDFs show the top of
   their first page, web pages and Markdown files a small rendered page, and
   text and code files their first lines. Files Archy cannot preview keep a

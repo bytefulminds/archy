@@ -123,17 +123,17 @@ class ArchiveTableModel(QAbstractTableModel):
     def __init__(self) -> None:
         super().__init__()
         self._rows: list[TreeNode] = []
+        self.has_name_times = False  # any row's name starts with a Unix time
 
     def set_folder(self, folder: TreeNode) -> None:
-        self.beginResetModel()
-        self._rows = list(folder.children.values())
-        self.endResetModel()
+        self.set_rows(list(folder.children.values()))
 
     def set_rows(self, nodes: list[TreeNode]) -> None:
         """Show an explicit flat list of nodes (used for archive-wide search
         results, which are not the children of a single folder)."""
         self.beginResetModel()
         self._rows = list(nodes)
+        self.has_name_times = any(name_timestamp(node.name) is not None for node in self._rows)
         self.endResetModel()
 
     def node_for_row(self, row: int) -> TreeNode | None:
@@ -195,6 +195,16 @@ class ArchiveTableModel(QAbstractTableModel):
                 stamp = name_timestamp(node.name)
                 return (stamp is not None, stamp or 0.0, node.name.casefold())
             return None
+
+        if role == Qt.ItemDataRole.ToolTipRole and col == _NAME:
+            stamp = name_timestamp(node.name)
+            if stamp is None:
+                return None
+            return tr(
+                "column.name_time_tip",
+                name=node.name,
+                date=format_modified(datetime.fromtimestamp(stamp)),
+            )
 
         if role == IS_DIR_ROLE:
             return node.is_dir

@@ -114,6 +114,36 @@ COMPONENTS: tuple[Component, ...] = (
         ("packages/backports.zstd.txt",),
     ),
     Component(
+        "mammoth, cobble",
+        "BSD-2-Clause",
+        "https://github.com/mwilliamson/python-mammoth",
+        ("packages/mammoth.txt", "packages/cobble.txt"),
+    ),
+    Component(
+        "openpyxl, et-xmlfile",
+        "MIT",
+        "https://foss.heptapod.net/openpyxl/openpyxl",
+        ("packages/openpyxl.txt", "packages/et-xmlfile.txt"),
+    ),
+    Component(
+        "python-pptx, XlsxWriter",
+        "MIT; BSD-2-Clause",
+        "https://github.com/scanny/python-pptx",
+        ("packages/python-pptx.txt", "packages/xlsxwriter.txt"),
+    ),
+    Component(
+        "lxml (with libxml2 and libxslt)",
+        "BSD-3-Clause; MIT",
+        "https://lxml.de",
+        ("packages/lxml.txt",),
+    ),
+    Component(
+        "typing-extensions",
+        "PSF-2.0",
+        "https://github.com/python/typing_extensions",
+        ("packages/typing-extensions.txt",),
+    ),
+    Component(
         "Inter, JetBrains Mono and Sora fonts",
         "OFL-1.1",
         "https://openfontlicense.org",

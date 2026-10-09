@@ -36,6 +36,10 @@ MODULES = (
     "psutil",
     "PIL.Image",
     "pi_heif",
+    "mammoth",
+    "openpyxl",
+    "pptx",
+    "lxml.etree",
     "PySide6.QtWidgets",
     "PySide6.QtMultimedia",
     "PySide6.QtMultimediaWidgets",
@@ -78,6 +82,28 @@ def _check_aes_zip() -> None:
         archive.setpassword(b"check")
         if archive.read("check.txt") != b"archy":
             raise RuntimeError("AES zip did not round-trip")
+
+
+def _check_office() -> None:
+    """An Excel sheet and a PowerPoint deck, made and previewed in memory
+    (python-pptx needs its template files in the package)."""
+    import openpyxl
+    from pptx import Presentation
+
+    from archy.services import office
+
+    book = openpyxl.Workbook()
+    book.active.append(["archy", 1])
+    buffer = io.BytesIO()
+    book.save(buffer)
+    if office.excel_sheets(buffer.getvalue())[0].rows != [["archy", "1"]]:
+        raise RuntimeError("Excel sheet did not read back")
+    deck = Presentation()
+    deck.slides.add_slide(deck.slide_layouts[0]).shapes.title.text = "archy"
+    buffer = io.BytesIO()
+    deck.save(buffer)
+    if "archy" not in office.powerpoint_page(buffer.getvalue()).html:
+        raise RuntimeError("PowerPoint slide did not read back")
 
 
 def _check_resources() -> None:
@@ -240,6 +266,7 @@ def run(out: Callable[[str], None] | None = None) -> int:
         *((f"import {name}", lambda name=name: importlib.import_module(name)) for name in MODULES),
         ("7z round trip", _check_7z),
         ("AES zip round trip", _check_aes_zip),
+        ("Office previews", _check_office),
         ("resources", _check_resources),
     ]
     if not os.environ.get("ARCHY_NO_WEBENGINE"):

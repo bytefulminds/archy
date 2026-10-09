@@ -34,6 +34,14 @@ PACKAGES = (
     "brotli",
     "texttable",
     "backports.zstd",
+    "mammoth",
+    "cobble",  # ships no license file: packages/cobble.txt is kept by hand
+    "openpyxl",
+    "et-xmlfile",
+    "python-pptx",
+    "lxml",
+    "xlsxwriter",
+    "typing-extensions",
 )
 
 

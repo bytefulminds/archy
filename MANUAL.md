@@ -45,7 +45,8 @@ Walk the folders of an archive like a normal folder. Four views: **list**,
 the tiles grow with the width of the list until another column fits, so a
 row is always filled. Besides photos and videos, documents get a thumbnail
 too: the top of a PDF's first page, a web page or Markdown file as a small
-page, the first lines of a text or code file. A file Archy cannot preview
+page, the first lines of a text or code file, and for Office files the picture
+Office saved with them or a small page of their text. A file Archy cannot preview
 keeps a dimmed icon, so you see at a glance what opens in the preview. The sidebar filters the archive by type: images,
 videos, documents and other files.
 
@@ -70,10 +71,13 @@ videos, documents and other files.
   column header). Folders always come first, in search results too. Archy
   remembers the sort for next time.
 - **Sort by a timestamp in the name:** for files whose name starts with a Unix
-  time, such as `1696512000--beach.jpg` or `1696512000123_IMG_0042.jpg`
-  (seconds or milliseconds, followed by `--`, `_` or the extension), choose
-  *Timestamp in name* in the sort menu. Those files come first, oldest to
-  newest (or the other way round), and the files without one follow by name.
+  time, such as `1696512000--beach.jpg`, `1696512000-beach.jpg` or
+  `1696512000123_IMG_0042.jpg` (seconds or milliseconds, followed by `-`,
+  `--`, `_` or the extension), choose *Timestamp in name* in the sort menu.
+  Those files come first, oldest to newest (or the other way round), and the
+  files without one follow by name. In a folder with such names the list view
+  shows the time as a date in its own column, and pointing at a name shows it
+  in every view.
 
 **Archives inside an archive** (experimental): double-click a zip, 7z or tar
 (also .tar.gz) inside the archive to open it like a folder. It is read from
@@ -131,6 +135,16 @@ preview with the same controls as a video, showing the cover art, title and
 artist when the file has them.
 
 **PDF.** Scroll through the pages and zoom.
+
+**Word, Excel and PowerPoint.** A Word document (.docx) shows as a page with
+its headings, lists, tables and pictures; a PowerPoint deck (.pptx) as one card
+per slide with its text and pictures where they are on the slide; an Excel
+workbook (.xlsx) as a table per sheet, with the values as Excel last
+calculated them (the first 5,000 rows and 200 columns). These are previews:
+layout and fonts come close to Office, not exactly. Macros are never run, and
+nothing the document refers to outside the archive is loaded. The older formats
+(.doc, .xls, .ppt) and documents protected with a password in Office itself
+have no preview.
 
 **Text and code.** The encoding is detected automatically (UTF-8, UTF-16,
 older Windows code pages) and emoji show in colour. Some formats get more:

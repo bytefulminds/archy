@@ -23,7 +23,7 @@ import os
 import sys
 from pathlib import Path
 
-from PyInstaller.utils.hooks import collect_dynamic_libs, collect_submodules
+from PyInstaller.utils.hooks import collect_data_files, collect_dynamic_libs, collect_submodules
 
 # SPECPATH is the directory holding this .spec file (packaging/); the repo root
 # is its parent.
@@ -62,6 +62,9 @@ _REQUIRED = (
     "PIL",
     "pi_heif",
     "libarchive",
+    "mammoth",
+    "openpyxl",
+    "pptx",
 )
 _missing = [name for name in _REQUIRED if importlib.util.find_spec(name) is None]
 if _missing:
@@ -130,6 +133,10 @@ hiddenimports += ["pi_heif", "PIL.Image", "PIL.ImageOps"]
 # resources.
 hiddenimports += ["PySide6.QtWebEngineCore", "PySide6.QtWebEngineWidgets"]
 binaries += collect_dynamic_libs("pi_heif")
+# Office previews (services/office.py) are imported when the first document is
+# shown. python-pptx reads its XML templates from files next to its code.
+hiddenimports += ["mammoth", "openpyxl", "pptx", "lxml.etree", "lxml._elementpath"]
+datas += collect_data_files("pptx")
 
 a = Analysis(
     [ENTRY],

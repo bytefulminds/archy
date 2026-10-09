@@ -23,6 +23,10 @@ dependencies = [
     "psutil>=5.9",
     "pi-heif>=0.18",  # HEIC photos where Qt cannot read them
     "pillow>=10",  # EXIF details, AVIF and PSD
+    # Office previews (services/office.py): Word, Excel, PowerPoint
+    "mammoth>=1.6",
+    "openpyxl>=3.1",
+    "python-pptx>=0.6.23",
 ]
 
 [project.urls]
@@ -32,7 +36,7 @@ Issues = "https://gitlab.com/bytefulminds/archy/-/issues"
 
 [project.optional-dependencies]
 video-fallback = ["av>=12.0"]       # in-memory video decode fallback (PyAV)
-dev = ["pytest>=8.0", "ruff>=0.5", "mypy>=1.10"]
+dev = ["pytest>=8.0", "ruff>=0.5", "mypy>=1.10", "python-docx>=1.1"]  # docx for tests
 
 [project.scripts]
 archy = "archy.__main__:main"

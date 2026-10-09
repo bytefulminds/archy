@@ -120,6 +120,82 @@ def _text_lines(text: str) -> QImage:
     return image
 
 
+def office_thumbnail(data: bytes, name: str) -> QImage:
+    """The preview picture Office saved in the file when there is one (a
+    PowerPoint's first slide, usually), else a small page of its text: a
+    Word document as a page, a sheet's first rows, a deck's slide text."""
+    from archy.services import office
+
+    picture = office.embedded_thumbnail(data)
+    if picture is not None:
+        from archy.services.image_decode import decode_image
+
+        image = decode_image(picture, QSize(WIDTH * 2, WIDTH * 2))
+        if not image.isNull() and not _blank(image):
+            return _on_white(image.scaledToWidth(WIDTH, Qt.TransformationMode.SmoothTransformation))
+    try:
+        kind = office.kind_of(name)
+        if kind == "word":
+            return _rendered_page(office.word_page(data).body, "html")
+        if kind == "powerpoint":
+            return _slide_text(office.powerpoint_page(data).body)
+        if kind == "excel":
+            sheets = office.excel_sheets(data)
+            return _sheet_grid(sheets[0].rows[:14] if sheets else [])
+    except office.OfficeError:
+        return QImage()
+    return QImage()
+
+
+def _blank(image: QImage) -> bool:
+    """A preview picture of one colour (an empty first slide or page)."""
+    small = image.scaled(16, 16)
+    first = small.pixel(0, 0)
+    return all(small.pixel(x, y) == first for x in range(16) for y in range(16))
+
+
+def _slide_text(body: str) -> QImage:
+    """The first slide's text on a white 16:9 card."""
+    return _rendered_page(body or "", "html")
+
+
+def _sheet_grid(rows: list[list[str]]) -> QImage:
+    """The top left of a sheet: cells on a light grid, the first row bold."""
+    image = QImage(WIDTH, HEIGHT, QImage.Format.Format_RGB32)
+    image.fill(QColor("#FFFFFF"))
+    painter = QPainter(image)
+    painter.setRenderHint(QPainter.RenderHint.TextAntialiasing, True)
+    font = QFont()
+    font.setPixelSize(9)
+    cell_w, cell_h = 52, 13
+    painter.setPen(QColor("#D5D9DE"))
+    for x in range(0, WIDTH, cell_w):
+        painter.drawLine(x, 0, x, HEIGHT)
+    for y in range(0, HEIGHT, cell_h):
+        painter.drawLine(0, y, WIDTH, y)
+    painter.setPen(_INK)
+    for r, row in enumerate(rows[: HEIGHT // cell_h]):
+        font.setBold(r == 0)
+        painter.setFont(font)
+        for c, cell in enumerate(row[: WIDTH // cell_w + 1]):
+            rect = QRectF(c * cell_w + 3, r * cell_h, cell_w - 5, cell_h)
+            painter.drawText(rect, Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft, cell)
+    painter.end()
+    return image
+
+
+def _on_white(picture: QImage) -> QImage:
+    """The top of ``picture`` on a white thumbnail."""
+    image = QImage(WIDTH, HEIGHT, QImage.Format.Format_RGB32)
+    image.fill(Qt.GlobalColor.white)
+    painter = QPainter(image)
+    painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+    top = max(0, (HEIGHT - picture.height()) // 2)
+    painter.drawImage(0, top, picture)
+    painter.end()
+    return image
+
+
 def pdf_thumbnail(data: bytes) -> QImage:
     """The top of a PDF's first page; a null image when it cannot be read
     (damaged, or locked with a password)."""

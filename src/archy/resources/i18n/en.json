@@ -422,6 +422,11 @@
     "splash.starting": "Version {version} · starting",
     "progress.folder_bytes": "{read} of {size} unpacked",
     "column.name_time": "Timestamp in name",
-    "locate.tip": "Show the selection: scroll back to the selected file"
+    "locate.tip": "Show the selection: scroll back to the selected file",
+    "column.name_time_tip": "{name}\nTimestamp in name: {date}",
+    "preview.office_encrypted": "{name}\n\nThis document is protected with a password in Office itself; Archy cannot open that yet",
+    "preview.office_failed": "{name}\n\nCould not read this document",
+    "preview.sheet_cut": "Only the first {rows} rows and {columns} columns are shown.",
+    "preview.sheet_empty": "This workbook has no sheets with content"
   }
 }

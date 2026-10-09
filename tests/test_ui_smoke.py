@@ -777,7 +777,7 @@ def test_sorting_by_the_timestamp_in_the_name(tmp_path) -> None:  # noqa: ANN001
     import time
     import zipfile
 
-    from PySide6.QtCore import QCoreApplication
+    from PySide6.QtCore import QCoreApplication, Qt
 
     from archy.ui import theme
     from archy.ui.main_window import MainWindow
@@ -819,7 +819,19 @@ def test_sorting_by_the_timestamp_in_the_name(tmp_path) -> None:  # noqa: ANN001
             "zeta.txt",
         ]
         assert window._sort_column_actions[6].isChecked()
-        assert window._table.isColumnHidden(6)  # only a sort choice
+        # The folder has such names: the column shows them as dates, and the
+        # name's tooltip says it too (also in the thumbnail views).
+        assert not window._table.isColumnHidden(6)
+        proxy = window._proxy
+        row = names().index("1696512000--b.jpg")
+        date = proxy.index(row, 6).data()
+        assert date and "2023" in date
+        tip = proxy.index(row, 0).data(Qt.ItemDataRole.ToolTipRole)
+        assert "1696512000--b.jpg" in tip and date in tip
+        assert proxy.index(names().index("zeta.txt"), 0).data(Qt.ItemDataRole.ToolTipRole) is None
+        window._enter_folder(window._nav[0].children["sub"])
+        assert window._table.isColumnHidden(6)  # nothing to show there
+        window.go_up()
         window._sort_by(None, True)  # newest first, the others still below
         assert names() == [
             "sub",

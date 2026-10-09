@@ -551,6 +551,19 @@ _TEMPLATE = """
         border-bottom: 1px solid {DIVIDER}; padding: 3px 8px; font-weight: 600;
     }}
     QTableView#csvTable QTableCornerButton::section {{ background: {ELEVATED}; border: none; }}
+    QTabWidget#sheetTabs {{ background: {SURFACE}; border-radius: 10px; }}
+    QTabWidget#sheetTabs QTabBar {{ background: transparent; }}
+    QTabWidget#sheetTabs::pane {{ border: none; }}
+    QTabWidget#sheetTabs::tab-bar {{ left: 0; }}
+    QTabWidget#sheetTabs QTabBar::tab {{
+        background: transparent; color: {TEXT_SECONDARY}; border: none;
+        border-top: 2px solid transparent; padding: 5px 14px; margin-right: 2px;
+    }}
+    QTabWidget#sheetTabs QTabBar::tab:hover {{ color: {TEXT_PRIMARY}; }}
+    QTabWidget#sheetTabs QTabBar::tab:selected {{
+        color: {TEXT_PRIMARY}; border-top: 2px solid {ACCENT}; background: {SURFACE};
+    }}
+    QLabel#sheetNote {{ color: {TEXT_SECONDARY}; font-size: 11px; padding: 4px 8px; }}
     QTextBrowser#markdownPage {{
         background: {SURFACE}; color: {TEXT_PRIMARY}; border: 1px solid {BORDER};
         border-radius: 10px;

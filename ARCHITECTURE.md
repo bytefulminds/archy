@@ -148,6 +148,18 @@ third-party components with their licenses, and the notices text built from
   the top of a PDF's first page (QtPdf), HTML/Markdown drawn with a
   QTextDocument that loads nothing the page refers to, and the first lines of
   a text file. Only the first 16 KB of a text file is read.
+- `office.py` - Word, Excel and PowerPoint previews, Qt-free: .docx to an
+  HTML page (mammoth), .pptx to one HTML card per slide with its text boxes
+  and pictures positioned in percent and font sizes in container units
+  (python-pptx), .xlsx to the values of each sheet (openpyxl, read-only,
+  `data_only`: the values Excel last calculated, capped at 5,000 rows by 200
+  columns). Pictures become resources of the page ("media/..."), served by the
+  web view like the files next to an HTML page; EMF/WMF are left out.
+  `embedded_thumbnail` reads the docProps/thumbnail picture Office may save;
+  `doc_thumbs.office_thumbnail` falls back to a small page of the text.
+  `providers` shows pages in the web view (or `OfflineBrowser`) and sheets as
+  tables in a `QTabWidget`. Macros are never looked at; password-protected
+  Office files (an OLE container, not a zip) are reported as such.
 - `raw_decode.py` - camera RAW: the file is scanned for embedded JPEG streams,
   their size read from the JPEG frame header, and the largest one Qt decodes
   is used (lossless SOF3 sensor data is skipped), turned upright by the RAW's

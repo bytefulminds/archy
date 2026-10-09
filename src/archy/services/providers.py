@@ -673,6 +673,77 @@ def _build_video(
     return container
 
 
+def _build_office(name: str, data: bytes) -> QWidget:
+    """Word and PowerPoint as a page (the web view when there is one), Excel
+    as a table per sheet (services/office.py)."""
+    from archy.services import office
+
+    kind = office.kind_of(name)
+    try:
+        if kind == "excel":
+            return _office_sheets(office.excel_sheets(data))
+        page = office.word_page(data) if kind == "word" else office.powerpoint_page(data)
+    except office.OfficeError as exc:
+        if str(exc) == "encrypted":
+            return _message(tr("preview.office_encrypted", name=name))
+        return _message(tr("preview.office_failed", name=name))
+    except Exception:  # noqa: BLE001 - a library choking on an odd file
+        return _message(tr("preview.office_failed", name=name))
+    return _office_page(name, page)
+
+
+def _office_page(name: str, page) -> QWidget:  # noqa: ANN001 - office.Page
+    from archy.services import web_view
+
+    reader = page.reader()
+    if web_view.available():
+        view = web_view.make_web_view(name, reader)
+        view.set_html(page.html)
+        return view
+    from archy.services.text_view import OfflineBrowser
+
+    browser = OfflineBrowser(reader)
+    browser.setObjectName("htmlPage")
+    browser.setHtml(page.html)
+    return browser
+
+
+def _office_sheets(sheets: list) -> QWidget:  # noqa: ANN001 - list[office.Sheet]
+    from PySide6.QtWidgets import QTabWidget
+
+    from archy.services.office import MAX_COLUMNS, MAX_ROWS, column_name
+    from archy.services.text_view import SheetModel, make_table
+
+    tabs = QTabWidget()
+    tabs.setObjectName("sheetTabs")
+    tabs.setDocumentMode(True)
+    tabs.setTabPosition(QTabWidget.TabPosition.South)  # like a spreadsheet
+    tabs.tabBar().setDrawBase(False)
+    tabs.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)  # the theme's surface
+    for sheet in sheets:
+        table = make_table(monospace=False)
+        model = SheetModel(sheet.rows, max(1, sheet.columns), column_name)
+        model.setParent(table)
+        table.setModel(model)
+        table.horizontalHeader().setStretchLastSection(False)
+        table.resizeColumnsToContents()
+        for column in range(model.columnCount()):
+            table.setColumnWidth(column, min(table.columnWidth(column), 320))
+        holder = QWidget()
+        layout = QVBoxLayout(holder)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(table, stretch=1)
+        if sheet.more_rows or sheet.more_columns:
+            note = QLabel(tr("preview.sheet_cut", rows=MAX_ROWS, columns=MAX_COLUMNS))
+            note.setObjectName("sheetNote")
+            note.setWordWrap(True)
+            layout.addWidget(note)
+        tabs.addTab(holder, sheet.title)
+    if not sheets:
+        return _message(tr("preview.sheet_empty"))
+    return tabs
+
+
 def build_preview_widget(name: str, data: bytes) -> QWidget:
     """Return a Qt widget previewing ``data`` (an entry's in-memory bytes).
 
@@ -690,6 +761,8 @@ def build_preview_widget(name: str, data: bytes) -> QWidget:
         return _build_video(name, data)
     if kind is PreviewKind.AUDIO:
         return _build_video(name, data, audio_only=True)
+    if kind is PreviewKind.OFFICE:
+        return _build_office(name, data)
     return _message(tr("preview.unsupported", name=name))
 
 

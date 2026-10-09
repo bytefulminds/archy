@@ -12,6 +12,7 @@ from archy.services.name_stamp import name_timestamp
     [
         ("1696512000--beach.jpg", 1696512000),
         ("1696512000_IMG_0042.jpg", 1696512000),
+        ("1696512000-beach.jpg", 1696512000),
         ("1696512000.jpg", 1696512000),
         ("1696512000", 1696512000),
         ("999999999--old.jpg", 999999999),  # 9 digits: 2001
@@ -31,7 +32,6 @@ def test_reads_the_time(name: str, seconds: float) -> None:
         "IMG_0042.jpg",  # not at the start
         "20231005_party.jpg",  # a date, not a Unix time (8 digits)
         "0042_IMG.jpg",
-        "1696512000-beach.jpg",  # one dash: not a separator Archy takes
         "16965120001_x.jpg",  # 11 digits
         "5000000000_future.jpg",  # past 2100
         "12345678901234_x.jpg",

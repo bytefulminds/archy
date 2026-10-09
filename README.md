@@ -47,7 +47,7 @@ stepping. Search the whole archive by name and jump straight to what you find.
 Web pages look the way a browser shows them, with all their CSS and the
 images and fonts next to them in the archive. Markdown is shown formatted, and
 one click shows the text behind either. PDFs open in the preview too, with
-their page count and author.
+their page count and author, and so do Word, Excel and PowerPoint files.
 
 <p align="center">
   <img src="docs/screenshots/preview-markdown.png" alt="A Markdown travel plan shown formatted, with a table and a list" width="49%">

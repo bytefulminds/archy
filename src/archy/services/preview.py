@@ -13,6 +13,7 @@ class PreviewKind(Enum):
     PDF = auto()
     VIDEO = auto()
     AUDIO = auto()
+    OFFICE = auto()  # Word, Excel, PowerPoint (services/office.py)
     UNSUPPORTED = auto()
 
 
@@ -116,6 +117,9 @@ _AUDIO_EXT = {
 }
 
 
+_OFFICE_EXT = {".docx", ".docm", ".xlsx", ".xlsm", ".pptx", ".pptm"}  # see services/office.py
+
+
 def kind_for_name(name: str) -> PreviewKind:
     dot = name.rfind(".")
     ext = name[dot:].lower() if dot != -1 else ""
@@ -129,4 +133,6 @@ def kind_for_name(name: str) -> PreviewKind:
         return PreviewKind.VIDEO
     if ext in _AUDIO_EXT:
         return PreviewKind.AUDIO
+    if ext in _OFFICE_EXT:
+        return PreviewKind.OFFICE
     return PreviewKind.UNSUPPORTED
