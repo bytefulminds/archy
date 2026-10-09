@@ -55,6 +55,10 @@ videos, documents and other files.
 - **Back and forward** through the folders you visited with the arrows at the
   start of the path, the mouse's back and forward buttons, or **Alt+Left** /
   **Alt+Right** (**Cmd+[** / **Cmd+]** on macOS).
+- **Keeps your place:** going back up (with the path, Back or Up) selects the
+  folder you came out of and scrolls to it, so a long folder does not start at
+  the top again. Coming back into a folder puts the cursor on the file you were
+  at.
 - **Jump to a folder next to this one:** click a **/** in the path to see the
   folders at that level (20 at a time); type to narrow the list down, use the
   arrow keys and Enter, or click one.

@@ -25,6 +25,10 @@ next release.
 
 ### Changed
 
+- Going back up a folder (with the path, Back or Up) keeps your place: the
+  folder you came out of is selected and scrolled into view, instead of the
+  list starting at the top again. Coming back into a folder puts the cursor
+  on the file you were at.
 - **Faster folders in large solid 7z archives**, without repacking them.
   Archy now unpacks compressed solid blocks itself: in an archive made by
   7-Zip with several threads it starts at the nearest point before a folder

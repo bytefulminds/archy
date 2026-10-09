@@ -6,8 +6,10 @@ from PySide6.QtCore import (
     QObject,
     QSize,
     Qt,
+    QTimer,
 )
 from PySide6.QtWidgets import (
+    QAbstractItemView,
     QLabel,
     QSizePolicy,
     QToolButton,
@@ -77,6 +79,10 @@ class NavigationMixin:
     def _reset_history(self) -> None:
         self._history: list[tuple[str, ...]] = []
         self._history_index = -1
+        # Per folder (by path): the item that was current when it was left,
+        # so coming back puts you where you were (see _place_after_move).
+        self._folder_marks: dict[tuple[str, ...], str] = {}
+        self._shown_path: tuple[str, ...] | None = None
 
     def _record_history(self) -> None:
         """Remember the folder now shown (by path, so it survives a reload)."""
@@ -122,6 +128,7 @@ class NavigationMixin:
 
     def _refresh_folder(self) -> None:
         current = self._nav[-1]
+        self._remember_place()
         self._model.set_folder(current)
         self._thumbs.clear()
         self._prefetcher.start_folder()
@@ -142,6 +149,61 @@ class NavigationMixin:
         self._show_placeholder(tr("preview.select_file"))
         self._update_counts()
         self._update_nav_state()
+        self._place_after_move()
+
+    # ------------------------------------------------- where you were in a folder
+    def _remember_place(self) -> None:
+        """Before leaving the folder shown: note its current item."""
+        shown = getattr(self, "_shown_path", None)
+        if shown is None:
+            return
+        index = self._selection.currentIndex()
+        node = self._node_at(index) if index.isValid() else None
+        if node is not None:
+            self._folder_marks[shown] = node.path
+
+    def _place_after_move(self) -> None:
+        """In the folder just opened, show the item you were at, in the
+        middle of the view: going up (the path bar, Back, the Up key), the
+        folder you came out of, selected; otherwise the item that was current
+        when you last left this folder. So a long folder does not jump back
+        to the top every time."""
+        if not hasattr(self, "_folder_marks"):
+            self._reset_history()
+        previous = self._shown_path
+        path = tuple(node.name for node in self._nav[1:])
+        self._shown_path = path
+        target = None
+        if previous is not None and len(previous) > len(path) and previous[: len(path)] == path:
+            child = self._nav[-1].children.get(previous[len(path)])
+            target = child.path if child is not None else None
+        if target is None:
+            target = self._folder_marks.get(path)
+        index = self._index_of_path(target) if target is not None else None
+        if index is None:
+            return
+        node = self._node_at(index)
+        if node is not None and node.is_dir:
+            self._selection.setCurrentIndex(
+                index,
+                QItemSelectionModel.SelectionFlag.ClearAndSelect
+                | QItemSelectionModel.SelectionFlag.Rows,
+            )
+        else:
+            # A file: only put the cursor there. Selecting it would open its
+            # preview (a large video, say) just for passing through.
+            self._selection.setCurrentIndex(index, QItemSelectionModel.SelectionFlag.NoUpdate)
+        view = self._current_view()
+        center = QAbstractItemView.ScrollHint.PositionAtCenter
+        view.scrollTo(index, center)
+        # The thumbnail views lay out their tiles after the model reset; scroll
+        # again once that has happened.
+        QTimer.singleShot(0, lambda: self._scroll_to_current(view, center))
+
+    def _scroll_to_current(self, view: QAbstractItemView, hint) -> None:  # noqa: ANN001
+        index = self._selection.currentIndex()
+        if index.isValid() and view is self._current_view():
+            view.scrollTo(index, hint)
 
     def _rebuild_breadcrumb(self) -> None:
         while self._breadcrumb_layout.count():
@@ -298,15 +360,21 @@ class NavigationMixin:
         view_label = view_labels()[self._views.currentIndex()]
         self._folder_hint.setText(tr("count.items_in_folder", view=view_label, count=visible))
 
-    def _select_path(self, path: str) -> None:
+    def _index_of_path(self, path: str):  # noqa: ANN202 - QModelIndex | None
+        """The view (proxy) index of ``path`` in the folder shown; None when
+        it is not there or filtered out."""
         for r in range(self._model.rowCount()):
             node = self._model.node_for_row(r)
             if node is not None and node.path == path:
                 proxy_index = self._proxy.mapFromSource(self._model.index(r, 0))
-                if proxy_index.isValid():
-                    self._selection.setCurrentIndex(
-                        proxy_index,
-                        QItemSelectionModel.SelectionFlag.ClearAndSelect
-                        | QItemSelectionModel.SelectionFlag.Rows,
-                    )
-                return
+                return proxy_index if proxy_index.isValid() else None
+        return None
+
+    def _select_path(self, path: str) -> None:
+        proxy_index = self._index_of_path(path)
+        if proxy_index is not None:
+            self._selection.setCurrentIndex(
+                proxy_index,
+                QItemSelectionModel.SelectionFlag.ClearAndSelect
+                | QItemSelectionModel.SelectionFlag.Rows,
+            )

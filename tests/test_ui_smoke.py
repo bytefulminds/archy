@@ -1441,3 +1441,64 @@ def test_folder_loading_shows_it_is_busy_before_the_first_file() -> None:
     window._on_prefetch_done()
     assert not window._prefetch_label.isVisible()
     window.close()
+
+
+def test_going_back_up_keeps_your_place_in_a_long_folder(tmp_path) -> None:  # noqa: ANN001
+    import zipfile
+
+    from PySide6.QtWidgets import QApplication
+
+    from archy.ui import theme
+    from archy.ui.main_window import MainWindow
+
+    archive = tmp_path / "long.zip"
+    with zipfile.ZipFile(archive, "w") as z:
+        for i in range(80):
+            z.writestr(f"map{i:02d}/foto{i:02d}.jpg", b"x")
+            z.writestr(f"map{i:02d}/notes.txt", b"x")
+
+    app = _app()
+    theme.apply(app)
+    window = MainWindow()
+    window.resize(1000, 600)
+    window.show()
+    _open(window, archive)
+
+    def current() -> str | None:
+        index = window._selection.currentIndex()
+        node = window._node_at(index) if index.isValid() else None
+        return node.name if node is not None else None
+
+    def visible(view) -> bool:  # noqa: ANN001
+        rect = view.visualRect(window._selection.currentIndex())
+        return view.viewport().rect().intersects(rect)
+
+    for view_index in (0, 2):  # the list, and the thumbnails
+        window._switch_view(view_index)
+        view = window._current_view()
+        root = window._nav[0]
+        window._enter_folder(root.children["map65"])
+        window._go_to_depth(0)  # the path bar, back to the top level
+        for _ in range(3):
+            app.processEvents()
+        assert current() == "map65"  # the folder you came out of, selected
+        assert window._selection.isSelected(window._selection.currentIndex())
+        assert view.verticalScrollBar().value() > 0 and visible(view)  # not at the top
+
+        # Up with the keyboard/button and Back go to the same place.
+        window._enter_folder(root.children["map70"])
+        window.go_up()
+        app.processEvents()
+        assert current() == "map70"
+
+    # A file you were at in a folder: the cursor goes back there, without
+    # selecting it (that would open its preview).
+    window._switch_view(0)
+    window._enter_folder(window._nav[0].children["map10"])
+    window._select_path("map10/notes.txt")
+    window.go_up()
+    window._enter_folder(window._nav[0].children["map10"])
+    QApplication.processEvents()
+    assert current() == "notes.txt"
+    assert not window._selection.selectedIndexes()
+    window.close()
