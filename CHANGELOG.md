@@ -68,6 +68,8 @@ next release.
 
 ### Fixed
 
+- Text files in a 7z can now be edited in the preview, as in a zip. Before,
+  they stayed read-only even after the archive was unlocked.
 - On macOS the window briefly shrank and grew back the first time a web page
   (HTML) was shown in the preview; it now stays put.
 - A photo that was already unpacked kept showing the loading bar in the

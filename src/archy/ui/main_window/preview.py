@@ -704,6 +704,8 @@ class PreviewMixin:
         self._req_kind = kind
         self._clear_editor()
         max_bytes = _TEXT_PREVIEW_BYTES if kind is PreviewKind.TEXT else None
+        if kind is PreviewKind.TEXT and self._text_editable(node):
+            max_bytes = None  # whole, so it can be edited (a 7z: read in the background)
         # Already in memory (the folder pass unpacked it, or it was read
         # before): show it now. Through the loader it would wait behind a read
         # still running for a file selected earlier.
@@ -808,9 +810,9 @@ class PreviewMixin:
             self._show_placeholder(tr("preview.binary", name=node.name))
             return
 
-        decoded = decode_text(data, limit=None)
         if self._is_locked():
             # Reading it needed a password: keep it read-only (no save-back).
+            decoded = decode_text(data, limit=None)
             self._clear_editor()
             self._set_fullscreenable(False)
             self._set_nav_enabled(True)
@@ -820,6 +822,23 @@ class PreviewMixin:
             details_of(widget, file_details.text_details(decoded.text, decoded.encoding))
             self._set_preview_widget(widget)
             return
+        self._show_editable_text(node, data)
+
+    def _text_editable(self, node: TreeNode) -> bool:
+        """Whether a text file opens for editing: a writable, unlocked
+        archive and a file small enough to hold whole."""
+        backend = self._backend
+        return (
+            backend is not None
+            and backend.writable
+            and not self._is_locked()
+            and node.size <= _EDITOR_MAX
+        )
+
+    def _show_editable_text(self, node: TreeNode, data: bytes) -> None:
+        """The text in an editor; changes are staged when the file is left
+        and written on Save."""
+        decoded = decode_text(data, limit=None)
         widget, editor = make_text_preview(
             node.name, decoded.text, editable=True, resources=self._archive_resources(node)
         )
@@ -840,6 +859,10 @@ class PreviewMixin:
         if self._req_kind is PreviewKind.TEXT:
             if looks_binary(data):
                 self._show_placeholder(tr("preview.binary", name=node.name))
+                return
+            if self._text_editable(node) and len(data) == node.size:
+                self._show_editable_text(node, data)
+                self._temp.clear_preview()
                 return
             decoded = decode_text(data)
             text = decoded.text

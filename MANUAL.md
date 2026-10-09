@@ -192,7 +192,7 @@ zip and 7z archives can be changed:
 - add files and folders (**Ctrl+Shift+A**, or drag them onto the window)
 - create a folder (**Ctrl+Shift+N**)
 - rename (**F2**) and delete (**Delete**)
-- edit small text files in a zip directly in the preview
+- edit small text files in a zip or 7z directly in the preview
 
 Changes are collected first and written when you press **Save** (**Ctrl+S**).
 Archy then writes a complete new version next to the original, checks it, and

@@ -1699,3 +1699,45 @@ def test_an_encrypted_zip_can_be_unlocked_edited_and_saved(tmp_path, monkeypatch
         assert zf.read("renamed.txt") == b"hello"
         assert all(i.flag_bits & 0x1 for i in zf.infolist())
     window.close()
+
+
+def test_text_in_an_unlocked_7z_can_be_edited_in_the_preview(tmp_path, monkeypatch) -> None:  # noqa: ANN001
+    import time
+
+    from archy.ui.main_window import MainWindow
+
+    app = _app()
+    archive = _encrypted_backup(tmp_path / "store.7z")
+    window = MainWindow()
+    window.resize(1100, 700)
+    window.show()
+    monkeypatch.setattr(window, "_prompt_password", lambda _message: "geheim")
+    monkeypatch.setattr(window, "_confirm_unlock", lambda *_a, **_k: True)
+    _open(window, archive)
+
+    def show(name: str) -> None:
+        window._req_id += 1
+        window._preview_node(window._nav[-1].children[name], window._req_id)
+        deadline = time.monotonic() + 20
+        while window._editor is None and time.monotonic() < deadline:
+            app.processEvents()
+            time.sleep(0.01)
+
+    window._unlock_for_editing()
+    assert window._can_edit()
+    show("notes.txt")  # a 7z is read in the background, then opens for editing
+    assert window._editor is not None and not window._editor.isReadOnly()
+    assert window._editor.toPlainText() == "hallo"
+    cursor = window._editor.textCursor()
+    cursor.movePosition(cursor.MoveOperation.End)
+    cursor.insertText(" wereld")  # as typing does (setPlainText resets "modified")
+    window._editor.setTextCursor(cursor)
+    assert window._save_action.isEnabled()
+    window._stage_editor()
+    assert window._backend.has_unsaved_changes
+    window.save_archive(blocking=True)
+    app.processEvents()
+    assert not window._backend.has_unsaved_changes
+    entry = next(e for e in window._backend.list_entries() if e.path == "notes.txt")
+    assert window._backend.read_bytes(entry) == b"hallo wereld"
+    window.close()
