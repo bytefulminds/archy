@@ -99,7 +99,7 @@ third-party components with their licenses, and the notices text built from
 ### services/ - stateless helpers
 
 - `formatting.py` - human sizes, dates, ratios.
-- `preview.py` - `PreviewKind` (TEXT / IMAGE / PDF / VIDEO / AUDIO /
+- `preview.py` - `PreviewKind` (TEXT / IMAGE / PDF / VIDEO / AUDIO / OFFICE /
   UNSUPPORTED) and `kind_for_name` (by extension). Music uses the video
   player without a picture (`providers._AudioStage`: cover art, title, artist).
 - `providers.py` - builds the actual Qt preview widget from bytes
@@ -167,6 +167,12 @@ third-party components with their licenses, and the notices text built from
   PSD: Pillow's composite image, else the JPEG thumbnail in image resource
   1036/1033. `file_details` reads RAW EXIF from Pillow, the CR3 CMT boxes or
   the embedded JPEG.
+- `name_stamp.py` - `name_timestamp(name)`: the Unix time a file name starts
+  with (seconds, milliseconds, microseconds or nanoseconds, followed by `-`,
+  `--`, `_` or the extension; only 1973-2100 counts), or None. The model's
+  hidden column 6 ("Timestamp in name") sorts on it; the list view shows that
+  column only in a folder where a name has one (`has_name_times`), and the
+  name's tooltip shows the date in every view.
 - `temp_files.py` - `TempManager`: temp-files mode, the per-session encrypted
   store and its cleanup.
 - `encrypted_device.py` - `EncryptedBlobDevice`, a decrypting QIODevice so Qt
@@ -448,6 +454,14 @@ ruff format --check .   # formatting
 boots the window offscreen and checks a live accent change - it is the safety net
 for UI-layer refactors, so run it after any change under `ui/`.
 
+CI (`.gitlab-ci.yml`) runs lint and the tests on every pipeline. On a version
+tag it builds the three installers (Linux on GitLab's shared runners, Windows
+and macOS on the project's own runners with the shell executor) and creates
+the GitLab Release with the changelog section and the downloads; see
+`packaging/README.md`. The README screenshots are made by
+`scripts/readme_screenshots/take_screenshots.py` from a generated demo
+archive (no real photos or documents).
+
 ## The MainWindow package (how the window is organised)
 
 `MainWindow` is deliberately small: `main_window/__init__.py` holds only the
@@ -463,7 +477,10 @@ inherits from. This keeps each area easy to find and read without a
 - `preview.py` (`PreviewMixin`) - the preview pane: media chrome, loading
   states, displaying each file kind, and the full-screen slideshow (a timer
   that steps to the next photo, wrapping; Space in `FullscreenWindow` toggles
-  it).
+  it). A small text file in a writable, unlocked archive opens in an editor
+  (`_text_editable`, `_show_editable_text`): a zip reads it on the UI thread
+  (`fast_seek`), a 7z through the preview loader, whole instead of the first
+  part; `editing._stage_editor` stages the edit when the file is left.
 - `actions.py` (`ActionsMixin`) - the `QAction`s and keyboard shortcuts.
 - `opening.py` (`OpeningMixin`) - opening/closing archives and the password flow.
   The index is read by `ui/open_worker.py` on a worker thread while
@@ -479,7 +496,8 @@ inherits from. This keeps each area easy to find and read without a
 - `search.py` (`SearchMixin`) - in-folder and whole-archive search.
 - `editing.py` (`EditingMixin`) - add / delete / rename and drag-drop.
 - `locking.py` (`LockMixin`) - the edit lock (tooltip, unlock dialog) and saving
-  (a 7z in the background with progress, a zip directly).
+  (on `ui/save_worker.py` with progress and cancel when the backend has a
+  `save_plan()`, as zip and 7z do).
 - `extract.py` (`ExtractMixin`) - extraction and prefetch progress.
 - `apply_settings.py` (`SettingsMixin`) - opening the settings screen and
   applying changes live.

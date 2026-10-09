@@ -192,7 +192,8 @@ zip and 7z archives can be changed:
 - add files and folders (**Ctrl+Shift+A**, or drag them onto the window)
 - create a folder (**Ctrl+Shift+N**)
 - rename (**F2**) and delete (**Delete**)
-- edit small text files in a zip or 7z directly in the preview
+- edit small text files in a zip or 7z directly in the preview (in an
+  encrypted archive after unlocking it)
 
 Changes are collected first and written when you press **Save** (**Ctrl+S**).
 Archy then writes a complete new version next to the original, checks it, and
@@ -386,12 +387,14 @@ languages are very welcome.
 
 ## Roadmap
 
-- **Next:** installers for Windows (Inno Setup), macOS (.dmg) and Linux
-  (AppImage), built in CI.
+- Create a new archive in Archy (zip or 7z, with or without a password) and
+  put files in it.
+- Faster saves of compressed 7z archives, using several processor cores, so
+  larger compressed encrypted archives can be unlocked for editing too.
 - More interface languages (German, Polish, Russian, ...): contributions welcome.
 - Rar support on Windows without a separate libarchive install.
 - Sort by date taken, rating and camera.
-- Office documents: previews for doc, docx, xls and xlsx.
+- Previews of the older Office formats (.doc, .xls, .ppt).
 
 ## Built with
 
@@ -401,8 +404,11 @@ languages are very welcome.
 [libarchive-c](https://github.com/Changaco/python-libarchive-c),
 [pycryptodomex](https://www.pycryptodome.org),
 [psutil](https://github.com/giampaolo/psutil),
-[charset-normalizer](https://github.com/jawah/charset_normalizer) and
+[charset-normalizer](https://github.com/jawah/charset_normalizer),
 [pi-heif](https://github.com/bigcat88/pillow_heif) with
-[Pillow](https://python-pillow.org).
+[Pillow](https://python-pillow.org), and for the Office previews
+[mammoth](https://github.com/mwilliamson/python-mammoth),
+[python-pptx](https://github.com/scanny/python-pptx) and
+[openpyxl](https://openpyxl.readthedocs.io).
 The interface uses the Inter, Sora and JetBrains Mono fonts (SIL Open Font
 License).

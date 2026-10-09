@@ -2,10 +2,11 @@
 
 Builds the synthetic demo archive, opens it in Archy offscreen at 2x scale and
 grabs the showcase in the README: browsing, previews (video, code, Markdown,
-CSV, JSON, HTML), find and search, the extraction window, the unlock dialog and
-the settings. Run it after UI changes:
+CSV, HTML, Word, PowerPoint, Excel), document thumbnails, sorting on a
+timestamp in the name, find and search, the extraction window, the unlock
+dialog and the settings. Run it after UI changes:
 
-    pip install numpy pillow
+    pip install -e ".[dev]" numpy
     python scripts/readme_screenshots/take_screenshots.py
     ARCHY_SCREENSHOT_LANG=nl python scripts/readme_screenshots/take_screenshots.py
 
@@ -210,16 +211,54 @@ def main() -> None:
     for path, name in (
         ("Documenten/reisplanning.md", "preview-markdown.png"),
         ("Documenten/uitgaven.csv", "preview-csv.png"),
-        ("Documenten/camera.json", "preview-json.png"),
+        ("Documenten/reisverslag.docx", "preview-word.png"),
+        ("Documenten/presentatie.pptx", "preview-powerpoint.png"),
     ):
         window._select_path(path)
         pump(2)
         save(window, name, 1100, region=pane, aspect=0.8)
+    # The sheet tabs are at the bottom: a lower window instead of a crop.
+    window.resize(1440, 640)
+    window._select_path("Documenten/budget.xlsx")
+    pump(2)
+    save(window, "preview-excel.png", 1100, region=pane)
+    window.resize(1440, 900)
+    pump(0.3)
 
     go("Website")
     window._select_path("Website/index.html")
     pump(2)
     save(window, "preview-html.png", 1100, region=pane, aspect=0.8)
+    window._splitter.setSizes(sizes)
+    pump(0.3)
+
+    # Documents get thumbnails too: a page of a PDF, Word or web page, the
+    # picture Office saved, the first lines of a text file.
+    view(2)
+    go("Documenten")
+    pump(4)
+    window._select_path("Documenten/presentatie.pptx")
+    pump(3)
+    save(window, "browse-documents.png", 1600, region=panels)
+
+    # Phone exports named after a Unix time: sorted on it, shown as a date.
+    # The list gets the room for all its columns, so the name shows too.
+    view(0)
+    go("Foto's", "Telefoon")
+    window._sort_by(6, False)
+    window.resize(1700, 1110)  # about the shape of the documents shot next to it
+    pump(0.3)
+    total = sum(window._splitter.sizes())
+    window._splitter.setSizes([sizes[0], 1110, total - sizes[0] - 1110])
+    window._table.setColumnWidth(0, 300)  # the whole name
+    pump(1)
+    window._select_path("Foto's/Telefoon/1780720200-ontbijt_terras.jpg")
+    pump(2)
+    window._table.horizontalScrollBar().setValue(0)
+    save(window, "sort-timestamp.png", 1600, region=panels)
+    window._sort_by(0, False)
+    window.resize(1440, 900)
+    pump(0.3)
     window._splitter.setSizes(sizes)
     pump(0.3)
 
@@ -283,6 +322,7 @@ def main() -> None:
     class _Profile:  # an encrypted 48 GB backup made with Store
         packed_size = 48 * 1024**3
         header_encrypted = True
+        store_only = True
 
     soft_dialog.SoftDialog.exec = grab_unlock
     try:
@@ -295,6 +335,9 @@ def main() -> None:
     # The README shows these side by side: give each pair the same shape, so
     # the two stand level (the shorter one gets a transparent bottom).
     for pair in (
+        ("preview-word.png", "preview-powerpoint.png"),
+        ("preview-excel.png", "preview-csv.png"),
+        ("browse-documents.png", "sort-timestamp.png"),
         ("find-in-file.png", "extract-dialog.png"),
         ("unlock-dialog.png", "settings-temp-files.png"),
     ):
