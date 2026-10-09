@@ -480,12 +480,33 @@ def test_lock_shows_why_and_store_7z_can_be_unlocked_and_saved(tmp_path, monkeyp
     window.resize(1200, 800)
     window.show()
 
-    # Compressed + encrypted: locked for good, and the tooltip says why.
-    _open(window, _encrypted_backup(tmp_path / "packed.7z", store=False))
+    # Compressed + encrypted and large: locked for good, and the tooltip says why.
+    packed = _encrypted_backup(tmp_path / "packed.7z", store=False)
+    monkeypatch.setattr(locking, "RECOMPRESS_LIMIT", 100)  # "large" for this test
+    _open(window, packed)
     assert window._lock_button.isVisible()
     assert window._lock_button.property("lockState") == locking.FIXED
     assert "compressed" in window._lock_button.toolTip()
     assert not window._can_edit()
+    monkeypatch.undo()
+    monkeypatch.setattr(opening.soft_dialog, "prompt_text", lambda *a, **k: "geheim")
+    monkeypatch.setattr(locking.soft_dialog.SoftDialog, "exec", fake_exec)
+
+    # Compressed + encrypted and small: compressing it again takes seconds, so
+    # it can be unlocked, edited and saved, staying compressed and encrypted.
+    _open(window, packed)
+    assert window._lock_button.property("lockState") == locking.LOCKED
+    assert "compresses everything again" in window._lock_button.toolTip()
+    window._lock_button.click()
+    assert any("compresses everything again" in text for text in asked)
+    assert window._can_edit()
+    window._backend.write_bytes("extra.txt", b"toegevoegd")
+    window.save_archive(blocking=True)
+    app.processEvents()
+    assert not window._backend.has_unsaved_changes
+    profile = window._backend.edit_profile()
+    assert profile.encrypted and profile.header_encrypted and not profile.store_only
+    assert "extra.txt" in {e.path for e in window._backend.list_entries()}
 
     # Store + encrypted: locked, explained, and unlockable on purpose.
     archive = _encrypted_backup(tmp_path / "store.7z")

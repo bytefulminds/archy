@@ -358,8 +358,10 @@ tooltip that explains why:
 - an encrypted zip: a lock the user can open (the dialog explains that new and
   changed files are encrypted with AES-256, which the zip tools built into
   Windows and macOS cannot open). A zip save is always cheap, see below;
-- an encrypted, compressed 7z: a fixed lock (a rewrite would recompress
-  everything, hours on a big archive);
+- an encrypted, compressed 7z: a lock the user can open when its content is
+  at most `locking.RECOMPRESS_LIMIT` (1 GB; py7zr compresses at about 2 MB/s,
+  the dialog gives the estimate), a fixed lock above that (a rewrite would
+  recompress everything, hours on a big archive);
 - an encrypted 7z made with Store: a lock the user can open on purpose. A dialog
   explains what saving will do (new version next to the original, same
   password and encrypted names, free space needed); after that `_edit_unlocked`

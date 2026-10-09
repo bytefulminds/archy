@@ -19,8 +19,9 @@ from archy.ui.extract_dialog import SaveProgressDialog
 # will do, and editing is allowed for this session. Saving then writes a new,
 # equally encrypted version next to the original and replaces the original
 # only after checking it (core/backends/sevenzip_writer.py). An encrypted,
-# compressed 7z stays locked: rewriting it means compressing everything again,
-# which takes hours on a large archive. An encrypted zip can always be
+# compressed 7z can be unlocked when it is small (RECOMPRESS_LIMIT): a save
+# compresses everything again, which takes hours on a large archive, so a
+# large one stays locked. An encrypted zip can always be
 # unlocked: a save copies the entries that stay as they are (zip_backend).
 #
 # Saving a 7z runs on a worker thread with a progress window (SaveWorker);
@@ -32,6 +33,26 @@ LOCKED = "locked"  # read-only, can be unlocked
 FIXED = "fixed"  # read-only, cannot be unlocked
 UNLOCKED = "unlocked"  # was locked, editing allowed for this session
 NONE = "none"  # freely editable (no lock shown)
+
+
+# An encrypted, compressed 7z is compressed again on save (py7zr, one thread:
+# about 2 MB/s measured, photos and video included whatever the level). Up to
+# this much content that takes minutes, which the unlock dialog says and the
+# save shows with progress and a cancel button; a larger one stays read-only.
+RECOMPRESS_LIMIT = 1024 * 1024 * 1024
+_RECOMPRESS_RATE = 2 * 1024 * 1024  # bytes per second, for the estimate
+
+
+def _recompress_ok(profile) -> bool:  # noqa: ANN001 - EditProfile
+    return profile.unpacked_size <= RECOMPRESS_LIMIT
+
+
+def _estimate(size: int) -> str:
+    """Roughly how long compressing ``size`` bytes takes, in words."""
+    seconds = size / _RECOMPRESS_RATE
+    if seconds < 60:
+        return tr("lock.estimate_seconds", seconds=max(10, int(-(-seconds // 10)) * 10))
+    return tr("lock.estimate_minutes", minutes=int(-(-seconds // 60)))
 
 
 def _is_zip(backend: object) -> bool:
@@ -98,10 +119,16 @@ class LockMixin:
             return LOCKED, tr("lock.read_only"), tr("lock.zip_locked_text")
         profile = self._lock_profile()
         if profile is not None and not profile.store_only:
+            if not _recompress_ok(profile):
+                return (
+                    FIXED,
+                    tr("lock.read_only"),
+                    tr("lock.compressed_text", limit=format_size(RECOMPRESS_LIMIT)),
+                )
             return (
-                FIXED,
+                LOCKED,
                 tr("lock.read_only"),
-                tr("lock.compressed_text"),
+                tr("lock.compressed_small_text", time=_estimate(profile.unpacked_size)),
             )
         size = format_size(profile.packed_size) if profile is not None else tr("lock.size_unknown")
         return (
@@ -155,7 +182,7 @@ class LockMixin:
         if backend.password is None and not self._ask_and_check_password():
             return
         profile = self._lock_profile()
-        if profile is None or not profile.store_only:
+        if profile is None or not (profile.store_only or _recompress_ok(profile)):
             self._update_lock()
             return
         free = shutil.disk_usage(Path(backend.path).parent).free
@@ -175,6 +202,16 @@ class LockMixin:
                 "lock.zip_dialog_html",
                 name=html_escape(self._archive_label),
                 size=size,
+                free=format_size(free),
+            )
+        elif not profile.store_only:
+            names = tr("lock.dialog_names") if profile.header_encrypted else ""
+            html = tr(
+                "lock.compressed_dialog_html",
+                name=html_escape(self._archive_label),
+                unpacked=format_size(profile.unpacked_size),
+                time=_estimate(profile.unpacked_size),
+                names=names,
                 free=format_size(free),
             )
         else:

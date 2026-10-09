@@ -210,7 +210,10 @@ do. In an encrypted zip the files you did not change stay exactly as they were
 (ZipCrypto or AES); new and changed files are encrypted with AES-256 and the
 same password. Note that the zip tools built into Windows and macOS cannot open
 AES-encrypted files; 7-Zip, WinZip and Archy can. An encrypted, compressed 7z
-stays locked, because saving it would mean compressing everything again.
+is compressed again on every save, at roughly 2 MB per second. Up to 1 GB of
+content that takes a few minutes, so such an archive can be unlocked too: the
+dialog says about how long a save takes, and a save shows its progress and can
+be cancelled. A larger one stays locked, because a save would take hours.
 
 ## Privacy and temporary files
 

@@ -39,6 +39,9 @@ next release.
 
 ### Changed
 
+- An encrypted 7z that is compressed can now be unlocked for editing too when
+  it holds up to 1 GB; saving compresses it again, which the unlock dialog
+  says takes about how long (a few minutes for 1 GB). Larger ones stay locked.
 - Saving a zip is much faster: files that did not change are copied as they
   are instead of being unpacked and packed again, a renamed file is no longer
   read into memory, and a large save shows its progress and can be cancelled.
