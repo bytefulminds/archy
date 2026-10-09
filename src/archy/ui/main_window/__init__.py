@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import sys
+
 from PySide6.QtCore import (
     QItemSelectionModel,
     Qt,
@@ -237,6 +239,7 @@ class MainWindow(
         self.statusBar().hide()  # a custom bottom strip replaces the native one
         self._build_resize_grips(central)
         self._build_progress_widgets()
+        self._prepare_for_web_pages()
         # The mouse's back/forward buttons, wherever they are pressed (the
         # views' viewports take mouse presses before the window sees them).
         self._mouse_nav = MouseNavFilter(
@@ -254,3 +257,25 @@ class MainWindow(
             geom = self._settings.window_geometry
             if geom is not None:
                 self.restoreGeometry(geom)
+
+    def _prepare_for_web_pages(self) -> None:
+        """A web page (HTML preview) is drawn by Qt Quick, which on macOS
+        needs the window on a Metal surface. A window shown without one is
+        torn down and rebuilt the moment the first page appears: it shrank and
+        grew back. A tiny hidden Qt Quick widget from the start makes the
+        window get that surface when it is first shown (measured on macOS)."""
+        if sys.platform != "darwin":
+            return
+        from archy.services import web_view
+
+        if not web_view.available():
+            return
+        try:
+            from PySide6.QtQuickWidgets import QQuickWidget
+        except ImportError:
+            return
+        keeper = QQuickWidget(self)
+        keeper.setObjectName("webSurfaceKeeper")
+        keeper.setFixedSize(1, 1)
+        keeper.hide()
+        self._web_surface_keeper = keeper

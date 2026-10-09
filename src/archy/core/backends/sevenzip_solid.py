@@ -43,6 +43,7 @@ from archy.core.errors import ArchiveError, EncryptedArchiveError
 _LZMA2 = b"!"
 _LZMA = b"\x03\x01\x01"
 _IN_CHUNK = 1024 * 1024  # compressed bytes read (and decrypted) at a time
+_WINDOW = 1024 * 1024  # bytes read at once while walking the chunk headers
 _OUT_CHUNK = 4 * 1024 * 1024  # decoded bytes per step (cancelling is checked per step)
 _PARKED = 3  # decoders kept for a next read
 # A file this far past the decoder (and no reset point in between) is read by
@@ -204,6 +205,12 @@ class _Source:
         self._block = block
         self._cipher = _Cipher(block.aes, password) if block.aes is not None else None
         self._fh = open(path, "rb", buffering=0)  # noqa: SIM115 - closed by close()
+        # read_at's window: the chunk walk reads a few bytes every 64 KB, and
+        # one read of 1 MB is much faster than sixteen tiny ones far apart
+        # (measured on macOS: 7.5 s for the chunk headers of a 4 GB block).
+        self._window = b""
+        self._window_start = 0
+        self._ecb = None  # AES, for decrypting single 16-byte blocks
 
     def close(self) -> None:
         self._fh.close()
@@ -215,18 +222,40 @@ class _Source:
             raise ArchiveError("The archive ends unexpectedly (truncated or damaged)")
         return data
 
+    def _raw_at(self, position: int, size: int) -> bytes:
+        """``size`` packed bytes at ``position``, through the read window."""
+        offset = position - self._window_start
+        if offset < 0 or offset + size > len(self._window):
+            length = max(size, min(_WINDOW, self._block.packed - position))
+            self._window = self._read(position, length)
+            self._window_start = position
+            offset = 0
+        return self._window[offset : offset + size]
+
     def read_at(self, position: int, size: int) -> bytes:
         """A few bytes (a chunk header); fewer at the end of the stream."""
         size = max(0, min(size, self._block.coded - position))
         if size == 0:
             return b""
         if self._cipher is None:
-            return self._read(position, size)
+            return self._raw_at(position, size)
+        # CBC: each 16-byte block decrypts on its own, given the encrypted
+        # block before it (the IV for the first).
         aligned = position - position % _BLOCK
         end = position + size
         end += -end % _BLOCK
-        previous = self._read(aligned - _BLOCK, _BLOCK) if aligned else None
-        plain = self._cipher.decryptor(previous).decrypt(self._read(aligned, end - aligned))
+        if aligned:
+            raw = self._raw_at(aligned - _BLOCK, end - aligned + _BLOCK)
+            previous, body = raw[:_BLOCK], raw[_BLOCK:]
+        else:
+            previous, body = self._cipher.iv, self._raw_at(0, end)
+        if self._ecb is None:
+            self._ecb = self._cipher.block_decryptor()
+        decrypted = self._ecb.decrypt(body)
+        chain = previous + body[:-_BLOCK]
+        plain = (int.from_bytes(decrypted, "big") ^ int.from_bytes(chain, "big")).to_bytes(
+            len(body), "big"
+        )
         return plain[position - aligned : position - aligned + size]
 
     def stream(self, position: int) -> Iterator[bytes]:

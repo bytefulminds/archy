@@ -1602,3 +1602,26 @@ def test_locate_button_brings_the_selection_back_into_view(tmp_path) -> None:  #
         rect = view.visualRect(window._selection.currentIndex())
         assert view.viewport().rect().intersects(rect)
     window.close()
+
+
+def test_macos_window_is_ready_for_web_pages_from_the_start(monkeypatch) -> None:  # noqa: ANN001
+    # On macOS the first HTML preview rebuilt the whole window (it shrank and
+    # grew back) unless a Qt Quick widget was in it before it was shown.
+    import sys
+
+    from PySide6.QtWidgets import QWidget
+
+    from archy.services import web_view
+    from archy.ui.main_window import MainWindow
+
+    _app()
+    monkeypatch.setattr(web_view, "available", lambda: True)
+    monkeypatch.setattr(sys, "platform", "darwin")
+    window = MainWindow()
+    keeper = window.findChild(QWidget, "webSurfaceKeeper")
+    assert keeper is not None and keeper.isHidden()
+    monkeypatch.setattr(sys, "platform", "linux")
+    other = MainWindow()
+    assert other.findChild(QWidget, "webSurfaceKeeper") is None
+    window.close()
+    other.close()

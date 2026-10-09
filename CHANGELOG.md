@@ -50,6 +50,8 @@ next release.
 
 ### Fixed
 
+- On macOS the window briefly shrank and grew back the first time a web page
+  (HTML) was shown in the preview; it now stays put.
 - A photo that was already unpacked kept showing the loading bar in the
   preview until a photo selected before it, still being unpacked, was done;
   it now shows at once. Photos you only pass while browsing quickly are no
