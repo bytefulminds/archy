@@ -172,6 +172,10 @@ class FilePanelMixin:
         row.setContentsMargins(14, 0, 10, 0)
         row.setSpacing(8)
 
+        # On its own at the far left: it acts on the list, not on how it looks.
+        row.addWidget(self._build_locate_button())
+        row.addSpacing(4)
+
         self._folder_hint = QLabel("")
         self._folder_hint.setObjectName("folderHint")
         self._folder_hint.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
@@ -232,7 +236,9 @@ class FilePanelMixin:
             - margins.left()
             - margins.right()
             - self._sort_button.sizeHint().width()
-            - 2 * bar.layout().spacing()
+            - self._locate_button.sizeHint().width()
+            - 3 * bar.layout().spacing()
+            - 4
         )
         fits = self._view_switch_full <= room
         if fits != with_text:
@@ -265,6 +271,44 @@ class FilePanelMixin:
         "column.modified",
         "column.name_time",
     )
+
+    def _build_locate_button(self) -> QToolButton:
+        """Brings the selected file (or folder) back into view after scrolling
+        away from it in a long folder."""
+        button = QToolButton()
+        button.setObjectName("locateButton")
+        button.setToolTip(tr("locate.tip"))
+        button.setIcon(theme.symbol_icon("locate", 16, theme.TEXT_SECONDARY))
+        button.setIconSize(QSize(16, 16))
+        button.setCursor(Qt.CursorShape.PointingHandCursor)
+        button.setEnabled(False)
+        button.clicked.connect(self._reveal_selection)
+        self._selection.currentChanged.connect(lambda *_: self._update_locate())
+        self._selection.selectionChanged.connect(lambda *_: self._update_locate())
+        self._locate_button = button
+        return button
+
+    def _located_index(self):  # noqa: ANN202 - QModelIndex
+        """What the locate button shows: the current item, else the first
+        selected one."""
+        index = self._selection.currentIndex()
+        if not index.isValid():
+            selected = self._selection.selectedRows()
+            index = selected[0] if selected else index
+        return index
+
+    def _update_locate(self) -> None:
+        button = getattr(self, "_locate_button", None)
+        if button is not None:
+            button.setEnabled(self._located_index().isValid())
+
+    def _reveal_selection(self) -> None:
+        index = self._located_index()
+        if not index.isValid():
+            return
+        view = self._current_view()
+        view.scrollTo(index, QAbstractItemView.ScrollHint.PositionAtCenter)
+        view.setFocus()  # the arrow keys go on from there
 
     def _build_sort_button(self) -> QToolButton:
         button = QToolButton()

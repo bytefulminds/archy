@@ -1502,3 +1502,103 @@ def test_going_back_up_keeps_your_place_in_a_long_folder(tmp_path) -> None:  # n
     assert current() == "notes.txt"
     assert not window._selection.selectedIndexes()
     window.close()
+
+
+def _jpeg(color: tuple[int, int, int]) -> bytes:
+    import io
+
+    from PIL import Image
+
+    buffer = io.BytesIO()
+    Image.new("RGB", (64, 48), color).save(buffer, "JPEG")
+    return buffer.getvalue()
+
+
+def test_a_photo_in_memory_shows_without_waiting_for_another_read(tmp_path) -> None:  # noqa: ANN001
+    # A photo still being read (here: a read that never ends) must not hold up
+    # the preview of one that is in memory already.
+    import zipfile
+
+    from PySide6.QtWidgets import QApplication
+
+    from archy.ui import theme
+    from archy.ui.main_window import MainWindow
+
+    archive = tmp_path / "photos.zip"
+    with zipfile.ZipFile(archive, "w") as z:
+        z.writestr("a_slow.jpg", _jpeg((200, 20, 20)))
+        z.writestr("b_ready.jpg", _jpeg((20, 200, 20)))
+    app = _app()
+    theme.apply(app)
+    window = MainWindow()
+    window.show()
+    _open(window, archive)
+    submitted: list[str] = []
+    window._loader.submit = lambda _rid, _b, entry, *_a, **_k: submitted.append(entry.path)
+    ready = window._nav[0].children["b_ready.jpg"]
+    window._backend.read_bytes(ready.entry)  # in memory now (the read cache)
+
+    window._select_path("a_slow.jpg")
+    QApplication.processEvents()
+    assert submitted == ["a_slow.jpg"]
+    assert window._current_image_view() is None  # still loading
+    window._select_path("b_ready.jpg")
+    QApplication.processEvents()
+    assert submitted == ["a_slow.jpg"]  # not queued behind it
+    assert window._current_image_view() is not None  # shown at once
+    window.close()
+
+
+def test_a_stale_preview_read_is_skipped() -> None:
+    from archy.ui.preview_loader import PreviewLoader, _ReadTask
+
+    class Backend:
+        reads = 0
+
+        def read_bytes(self, entry, max_bytes=None):  # noqa: ANN001, ANN202
+            Backend.reads += 1
+            return b"x"
+
+    _app()
+    loader = PreviewLoader()
+    got: list[int] = []
+    loader.loaded.connect(lambda rid, _data: got.append(rid))
+    _ReadTask(loader, 1, Backend(), object(), None, lambda: True).run()
+    _ReadTask(loader, 2, Backend(), object(), None, lambda: False).run()
+    assert Backend.reads == 1 and got == [2]
+
+
+def test_locate_button_brings_the_selection_back_into_view(tmp_path) -> None:  # noqa: ANN001
+    import zipfile
+
+    from PySide6.QtWidgets import QApplication
+
+    from archy.ui import theme
+    from archy.ui.main_window import MainWindow
+
+    archive = tmp_path / "many.zip"
+    with zipfile.ZipFile(archive, "w") as z:
+        for i in range(150):
+            z.writestr(f"file{i:03d}.txt", b"x")
+    app = _app()
+    theme.apply(app)
+    window = MainWindow()
+    window.resize(1000, 600)
+    window.show()
+    _open(window, archive)
+    button = window._locate_button
+    assert not button.isEnabled()  # nothing selected yet
+    for view_index in (0, 3):
+        window._switch_view(view_index)
+        view = window._current_view()
+        window._select_path("file120.txt")
+        assert button.isEnabled()
+        view.verticalScrollBar().setValue(0)  # scrolled away to the top
+        QApplication.processEvents()
+        rect = view.visualRect(window._selection.currentIndex())
+        assert not view.viewport().rect().intersects(rect)
+        button.click()
+        QApplication.processEvents()
+        rect = view.visualRect(window._selection.currentIndex())
+        assert view.viewport().rect().intersects(rect)
+    window.close()

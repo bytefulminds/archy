@@ -421,6 +421,7 @@
     "slideshow.stop": "Stoppen (Esc)",
     "splash.starting": "Versie {version} · wordt gestart",
     "progress.folder_bytes": "{read} van {size} uitgepakt",
-    "column.name_time": "Tijdstempel in naam"
+    "column.name_time": "Tijdstempel in naam",
+    "locate.tip": "Selectie tonen: terug naar het geselecteerde bestand scrollen"
   }
 }

@@ -703,9 +703,22 @@ class PreviewMixin:
         self._req_node = node
         self._req_kind = kind
         self._clear_editor()
-        self._show_loading(node.name)
         max_bytes = _TEXT_PREVIEW_BYTES if kind is PreviewKind.TEXT else None
-        self._loader.submit(request_id, self._backend, node.entry, max_bytes)
+        # Already in memory (the folder pass unpacked it, or it was read
+        # before): show it now. Through the loader it would wait behind a read
+        # still running for a file selected earlier.
+        data = self._backend.peek_bytes(node.entry, max_bytes=max_bytes)
+        if data is not None:
+            self._on_preview_loaded(request_id, data)
+            return
+        self._show_loading(node.name)
+        self._loader.submit(
+            request_id,
+            self._backend,
+            node.entry,
+            max_bytes,
+            lambda rid=request_id: rid != self._req_id,
+        )
 
     def _preview_streamed(self, node: TreeNode, kind: PreviewKind, request_id: int) -> bool:
         """Play a video (or open a PDF) straight from the archive when the

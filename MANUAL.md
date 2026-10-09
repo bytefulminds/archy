@@ -55,6 +55,9 @@ videos, documents and other files.
 - **Back and forward** through the folders you visited with the arrows at the
   start of the path, the mouse's back and forward buttons, or **Alt+Left** /
   **Alt+Right** (**Cmd+[** / **Cmd+]** on macOS).
+- **Find the selection again:** after scrolling away in a long folder, the
+  round button with the target, at the far left above the list, scrolls the
+  selected file back into the middle of the view.
 - **Keeps your place:** going back up (with the path, Back or Up) selects the
   folder you came out of and scrolls to it, so a long folder does not start at
   the top again. Coming back into a folder puts the cursor on the file you were

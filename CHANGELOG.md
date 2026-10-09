@@ -12,6 +12,9 @@ next release.
 
 ### Added
 
+- **Show the selection.** A round button at the far left above the list
+  scrolls the selected file back into view after you scrolled away in a long
+  folder.
 - **Sort by a timestamp in the name.** Files whose name starts with a Unix
   time (such as `1696512000--beach.jpg` or `1696512000123_IMG_0042.jpg`) can
   be sorted on that time, oldest or newest first; files without one follow,
@@ -47,6 +50,10 @@ next release.
 
 ### Fixed
 
+- A photo that was already unpacked kept showing the loading bar in the
+  preview until a photo selected before it, still being unpacked, was done;
+  it now shows at once. Photos you only pass while browsing quickly are no
+  longer unpacked one after another in the background.
 - Opening a folder in a very large solid 7z could look frozen: the bar under
   the file list stayed at "0 / N" until the first file was unpacked, which can
   take minutes, or stopped at a file such as "7 / 90" for as long. It now

@@ -268,6 +268,12 @@ _TEMPLATE = """
     }}
     QToolButton#sortButton:hover {{ background: {_GLASS_STRONG}; color: {TEXT_PRIMARY}; }}
     QToolButton#sortButton::menu-indicator {{ image: none; width: 0; }}
+    QToolButton#locateButton {{
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid {_EDGE_SOFT}; border-radius: 16px; padding: 0;
+        min-width: 32px; max-width: 32px; min-height: 32px; max-height: 32px;
+    }}
+    QToolButton#locateButton:hover {{ background: {_GLASS_STRONG}; }}
     QToolButton#viewButton {{
         background: transparent; color: {TEXT_DISABLED};
         border: none; border-radius: 13px; padding: 0 13px;

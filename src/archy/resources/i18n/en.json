@@ -421,6 +421,7 @@
     "slideshow.stop": "Stop (Esc)",
     "splash.starting": "Version {version} · starting",
     "progress.folder_bytes": "{read} of {size} unpacked",
-    "column.name_time": "Timestamp in name"
+    "column.name_time": "Timestamp in name",
+    "locate.tip": "Show the selection: scroll back to the selected file"
   }
 }

@@ -150,6 +150,7 @@ class NavigationMixin:
         self._update_counts()
         self._update_nav_state()
         self._place_after_move()
+        self._update_locate()
 
     # ------------------------------------------------- where you were in a folder
     def _remember_place(self) -> None:
