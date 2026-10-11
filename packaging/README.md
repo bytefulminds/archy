@@ -53,7 +53,7 @@ Then the per-OS installer:
 - `build:linux-appimage`, `build:windows` and `build:macos` run automatically
   on version tags (`vX.Y.Z`): each builds its installer and uploads it to the
   project's package registry. Linux runs on GitLab's shared runners, Windows
-  and macOS on the project's own runners (tags `windows` / `macos`, shell
+  and macOS on our own group runners (tags `windows` / `macos`, shell
   executor). In other pipelines they are manual test builds.
 - `release` waits for the three builds and creates the GitLab Release of the
   tag, with the changelog section of that version as text and the three

@@ -456,7 +456,7 @@ for UI-layer refactors, so run it after any change under `ui/`.
 
 CI (`.gitlab-ci.yml`) runs lint and the tests on every pipeline. On a version
 tag it builds the three installers (Linux on GitLab's shared runners, Windows
-and macOS on the project's own runners with the shell executor) and creates
+and macOS on our own group runners with the shell executor) and creates
 the GitLab Release with the changelog section and the downloads; see
 `packaging/README.md`. The README screenshots are made by
 `scripts/readme_screenshots/take_screenshots.py` from a generated demo

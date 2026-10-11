@@ -4,8 +4,8 @@
 # build and release stages publish the downloads:
 #   - build:linux-appimage, build:windows and build:macos build the three
 #     installers and upload them to the project's generic package registry.
-#     Linux runs on GitLab's shared runners; Windows and macOS on the
-#     project's own runners (tags: windows / macos, shell executor, see
+#     Linux runs on GitLab's shared runners; Windows and macOS on our own
+#     group runners (tags: windows / macos, shell executor, see
 #     RELEASING.md). On other pipelines each can be started by hand as a test
 #     build, kept as a job artifact only.
 #   - release waits for all three, then creates the GitLab Release for the
@@ -131,7 +131,7 @@ release:
           link_type: package
 
 # The Windows and macOS builds run the same one-command build as on a PC or
-# Mac (see RELEASING.md) on the project's own runners, shell executor. The venv
+# Mac (see RELEASING.md) on our own group runners, shell executor. The venv
 # is kept between builds (GIT_CLEAN_FLAGS), so only changed packages install.
 # On a tag the installer is uploaded with the job token; the file name carries
 # __version__, so a tag that does not match it finds no file and stops.
@@ -139,7 +139,7 @@ release:
 build:windows:
   stage: build
   tags:
-    - windows                    # the project's Windows runner (PowerShell)
+    - windows                    # our Windows runner (PowerShell)
   rules:
     - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+/
     - when: manual               # otherwise: a test build, started by hand
@@ -165,7 +165,7 @@ build:windows:
 build:macos:
   stage: build
   tags:
-    - macos                      # the project's macOS runner (Apple Silicon)
+    - macos                      # our macOS runner (Apple Silicon)
   rules:
     - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+/
     - when: manual               # otherwise: a test build, started by hand
