@@ -521,9 +521,12 @@ _TEMPLATE = """
     QSpinBox#dialogSpin {{
         background: rgba(255, 255, 255, 0.035);
         border: 1px solid rgba(255, 255, 255, 0.07);
-        border-radius: 10px; min-height: 34px; padding: 0 10px;
+        border-radius: 10px; min-height: 34px; padding: 0;
         color: {TEXT_PRIMARY};
         selection-background-color: {ACCENT}; selection-color: {ACCENT_ON};
+    }}
+    QSpinBox#dialogSpin::up-button, QSpinBox#dialogSpin::down-button {{
+        width: 0; border: none; image: none;
     }}
     QSpinBox#dialogSpin:focus {{ border: 1px solid {ACCENT}; }}
     QScrollArea#settingsScroll {{ background: transparent; border: none; }}

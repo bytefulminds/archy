@@ -10,6 +10,8 @@ next release.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-12
+
 ### Added
 
 - **Edit encrypted zip archives.** An encrypted zip can now be unlocked (click
@@ -68,6 +70,9 @@ next release.
 
 ### Fixed
 
+- Videos get a thumbnail in every download. The video library was optional
+  and could be left out of a build (the Linux download had no video
+  thumbnails); it is now part of Archy, and every build checks that it works.
 - Text files in a 7z can now be edited in the preview, as in a zip. Before,
   they stayed read-only even after the archive was unlocked.
 - On macOS the window briefly shrank and grew back the first time a web page
@@ -318,7 +323,8 @@ The first public version: the state of Archy when the repository was created.
 - Opens archives from the command line, "Open with" (Windows, Linux) and the
   Dock (macOS).
 
-[Unreleased]: https://gitlab.com/bytefulminds/archy/-/compare/v0.2.1...main
+[Unreleased]: https://gitlab.com/bytefulminds/archy/-/compare/v0.3.0...main
+[0.3.0]: https://gitlab.com/bytefulminds/archy/-/compare/v0.2.1...v0.3.0
 [0.2.1]: https://gitlab.com/bytefulminds/archy/-/compare/v0.2.0...v0.2.1
 [0.2.0]: https://gitlab.com/bytefulminds/archy/-/compare/v0.1.0...v0.2.0
 [0.1.0]: https://gitlab.com/bytefulminds/archy/-/compare/v0.0.1...v0.1.0

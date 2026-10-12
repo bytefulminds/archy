@@ -1741,3 +1741,20 @@ def test_text_in_an_unlocked_7z_can_be_edited_in_the_preview(tmp_path, monkeypat
     entry = next(e for e in window._backend.list_entries() if e.path == "notes.txt")
     assert window._backend.read_bytes(entry) == b"hallo wereld"
     window.close()
+
+
+def test_number_fields_in_the_settings_show_their_value() -> None:
+    # Qt 6.12 left the text field of a styled spin box without buttons 1 pixel
+    # wide, so the slideshow interval looked empty. The value must be visible.
+    from archy.ui import settings_dialog, theme
+
+    app = _app()
+    theme.apply(app)
+    for value, suffix in ((4, " s"), (75, " %"), (8, " GB")):
+        spin = settings_dialog._spin(1, 95, value, suffix)
+        spin.show()
+        app.processEvents()
+        field = spin.lineEdit()
+        needed = field.fontMetrics().horizontalAdvance(spin.text())
+        assert field.width() - 2 * settings_dialog.SPIN_TEXT_MARGIN >= needed, spin.text()
+        spin.close()

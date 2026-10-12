@@ -25,3 +25,15 @@ def test_self_test_reports_a_missing_module(monkeypatch) -> None:  # noqa: ANN00
     lines: list[str] = []
     assert selftest.run(lines.append) == 1
     assert any(line.startswith("FAIL  import archy_no_such_module") for line in lines)
+
+
+def test_self_test_fails_without_video_thumbnails(monkeypatch) -> None:  # noqa: ANN001
+    # A package without PyAV makes no video thumbnails, silently: the self-test
+    # (run on every build) must catch that.
+    from archy.ui import thumbnail_loader
+
+    monkeypatch.setattr(selftest, "MODULES", ())
+    monkeypatch.setattr(thumbnail_loader, "_decode_video_frame", lambda _data: None)
+    lines: list[str] = []
+    assert selftest.run(lines.append) == 1
+    assert any(line.startswith("FAIL  video thumbnail") for line in lines)

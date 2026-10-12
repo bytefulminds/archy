@@ -17,7 +17,7 @@
 ; The version comes from the command line (ISCC /DAppVersion=1.2.3 ...);
 ; scripts/publish_build.py passes the one in src/archy/__init__.py.
 #ifndef AppVersion
-  #define AppVersion "0.2.1"
+  #define AppVersion "0.3.0"
 #endif
 #define AppPublisher "Bytefulminds"
 #define AppExeName "Archy.exe"

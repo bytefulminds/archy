@@ -89,7 +89,7 @@ COMPONENTS: tuple[Component, ...] = (
         ("packages/pi-heif.txt", "LGPL-3.0.txt"),
     ),
     Component(
-        "PyAV (optional)",
+        "PyAV",
         "BSD-3-Clause; FFmpeg under LGPL-2.1-or-later",
         "https://pyav.basswood-io.com",
         ("packages/av.txt", "LGPL-2.1.txt"),

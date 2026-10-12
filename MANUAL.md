@@ -346,8 +346,6 @@ xar and ar, install the native libarchive library:
 | Windows | Optional: place `libarchive.dll` next to the app |
 
 `python scripts/check_libarchive.py` tells you whether Archy can find it.
-Optionally, `pip install -e ".[video-fallback]"` adds PyAV, which Archy then
-also uses for video thumbnails.
 
 ## For developers
 
@@ -406,7 +404,8 @@ languages are very welcome.
 [psutil](https://github.com/giampaolo/psutil),
 [charset-normalizer](https://github.com/jawah/charset_normalizer),
 [pi-heif](https://github.com/bigcat88/pillow_heif) with
-[Pillow](https://python-pillow.org), and for the Office previews
+[Pillow](https://python-pillow.org), [PyAV](https://pyav.basswood-io.com) for
+the video thumbnails, and for the Office previews
 [mammoth](https://github.com/mwilliamson/python-mammoth),
 [python-pptx](https://github.com/scanny/python-pptx) and
 [openpyxl](https://openpyxl.readthedocs.io).
