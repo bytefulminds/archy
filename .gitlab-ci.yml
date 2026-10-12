@@ -41,7 +41,7 @@ variables:
     libxcomposite1 libxdamage1 libxrandr2 libxtst6 libxkbfile1
 
 cache:
-  key: "$CI_JOB_NAME"
+  key: "$CI_JOB_NAME_SLUG"         # "build-windows": a ":" is not allowed in a Windows path
   paths:
     - .cache/pip
 
@@ -132,7 +132,8 @@ release:
 
 # The Windows and macOS builds run the same one-command build as on a PC or
 # Mac (see RELEASING.md) on our own group runners, shell executor. The venv
-# is kept between builds (GIT_CLEAN_FLAGS), so only changed packages install.
+# and pip's cache are kept on the machine between builds (GIT_CLEAN_FLAGS), so
+# only changed packages install; GitLab's cache (a zip up and down) is not used.
 # On a tag the installer is uploaded with the job token; the file name carries
 # __version__, so a tag that does not match it finds no file and stops.
 
@@ -145,7 +146,8 @@ build:windows:
     - when: manual               # otherwise: a test build, started by hand
       allow_failure: true
   variables:
-    GIT_CLEAN_FLAGS: -ffdx -e .venv/
+    GIT_CLEAN_FLAGS: -ffdx -e .venv/ -e .cache/
+  cache: []
   script:
     - powershell -ExecutionPolicy Bypass -File packaging\windows\build.ps1
     - |
@@ -171,7 +173,8 @@ build:macos:
     - when: manual               # otherwise: a test build, started by hand
       allow_failure: true
   variables:
-    GIT_CLEAN_FLAGS: -ffdx -e .venv/
+    GIT_CLEAN_FLAGS: -ffdx -e .venv/ -e .cache/
+  cache: []
   script:
     # A runner started by launchd does not have Homebrew on its PATH.
     - eval "$(/opt/homebrew/bin/brew shellenv)"
