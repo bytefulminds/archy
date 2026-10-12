@@ -1,0 +1,7 @@
+# What a build installs on top of Archy's own dependencies (pyproject.toml).
+# Locked together with them in requirements/lock.txt, see RELEASING.md.
+pyinstaller
+# The editable install of Archy itself is built without network access to
+# fetch its build backend (pip --no-build-isolation), so lock that too.
+hatchling
+editables

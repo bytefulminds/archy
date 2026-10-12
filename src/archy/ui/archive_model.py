@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+from datetime import datetime
+
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, QSortFilterProxyModel, Qt
 
 from archy.core.tree import TreeNode
 from archy.i18n import tr
 from archy.services.formatting import format_modified, format_ratio, format_size
+from archy.services.name_stamp import name_timestamp
 from archy.services.preview import PreviewKind, kind_for_name
 from archy.ui import theme
 
@@ -20,8 +23,10 @@ _COLUMNS = (
     "column.ratio",
     "column.type",
     "column.modified",
+    "column.name_time",  # hidden in the table; a sort choice in the sort menu
 )
-_NAME, _SIZE, _COMPRESSED, _RATIO, _TYPE, _MODIFIED = range(6)
+_NAME, _SIZE, _COMPRESSED, _RATIO, _TYPE, _MODIFIED, _NAME_TIME = range(7)
+NAME_TIME_COLUMN = _NAME_TIME
 
 SORT_ROLE = int(Qt.ItemDataRole.UserRole) + 1
 IS_DIR_ROLE = int(Qt.ItemDataRole.UserRole) + 2
@@ -41,8 +46,23 @@ _DOC_EXT = {
     ".odp",
     ".rtf",
     ".csv",
+    ".tsv",
     ".md",
+    ".markdown",
+    ".rst",
     ".txt",
+    ".log",
+    # Web pages and data files: read like documents, previewed as one.
+    ".html",
+    ".htm",
+    ".xhtml",
+    ".xml",
+    ".json",
+    ".jsonl",
+    ".geojson",
+    ".yaml",
+    ".yml",
+    ".toml",
 }
 
 # Shared empty index for default parent args (avoids a call in defaults; B008).
@@ -103,17 +123,17 @@ class ArchiveTableModel(QAbstractTableModel):
     def __init__(self) -> None:
         super().__init__()
         self._rows: list[TreeNode] = []
+        self.has_name_times = False  # any row's name starts with a Unix time
 
     def set_folder(self, folder: TreeNode) -> None:
-        self.beginResetModel()
-        self._rows = list(folder.children.values())
-        self.endResetModel()
+        self.set_rows(list(folder.children.values()))
 
     def set_rows(self, nodes: list[TreeNode]) -> None:
         """Show an explicit flat list of nodes (used for archive-wide search
         results, which are not the children of a single folder)."""
         self.beginResetModel()
         self._rows = list(nodes)
+        self.has_name_times = any(name_timestamp(node.name) is not None for node in self._rows)
         self.endResetModel()
 
     def node_for_row(self, row: int) -> TreeNode | None:
@@ -150,6 +170,9 @@ class ArchiveTableModel(QAbstractTableModel):
                 return format_ratio(node.size, compressed)
             if col == _MODIFIED:
                 return format_modified(node.modified)
+            if col == _NAME_TIME:
+                stamp = name_timestamp(node.name)
+                return "" if stamp is None else format_modified(datetime.fromtimestamp(stamp))
             return None
 
         if role == SORT_ROLE:
@@ -167,7 +190,21 @@ class ArchiveTableModel(QAbstractTableModel):
                 return _type_label(node).casefold()
             if col == _MODIFIED:
                 return node.modified.timestamp() if node.modified is not None else 0.0
+            if col == _NAME_TIME:
+                # Names with a time first, oldest to newest; the others by name.
+                stamp = name_timestamp(node.name)
+                return (stamp is not None, stamp or 0.0, node.name.casefold())
             return None
+
+        if role == Qt.ItemDataRole.ToolTipRole and col == _NAME:
+            stamp = name_timestamp(node.name)
+            if stamp is None:
+                return None
+            return tr(
+                "column.name_time_tip",
+                name=node.name,
+                date=format_modified(datetime.fromtimestamp(stamp)),
+            )
 
         if role == IS_DIR_ROLE:
             return node.is_dir
@@ -253,6 +290,10 @@ class FolderSortProxy(QSortFilterProxyModel):
 
         lv = model.data(left, SORT_ROLE)
         rv = model.data(right, SORT_ROLE)
+        if left.column() == _NAME_TIME and lv[0] != rv[0]:
+            # Names with a time above the others, in either order (like folders).
+            top = self.sortOrder() == Qt.SortOrder.AscendingOrder
+            return lv[0] if top else rv[0]
         if lv == rv and left.column() != 0:
             # Equal sizes or dates (folders have none): A to Z by name, also
             # when sorting descending, so the order is stable and readable.

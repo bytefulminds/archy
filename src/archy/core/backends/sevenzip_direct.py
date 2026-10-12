@@ -151,10 +151,21 @@ class _Cipher:
         self._key = _key(password, cycles, salt)
         self._iv = iv
 
+    @property
+    def iv(self) -> bytes:
+        return self._iv
+
     def decryptor(self, previous_block: bytes | None):  # noqa: ANN202
         from Cryptodome.Cipher import AES
 
         return AES.new(self._key, AES.MODE_CBC, previous_block or self._iv)
+
+    def block_decryptor(self):  # noqa: ANN202
+        """AES on its own (ECB), for decrypting single blocks: the CBC chain
+        is applied by the caller."""
+        from Cryptodome.Cipher import AES
+
+        return AES.new(self._key, AES.MODE_ECB)
 
 
 def read_span(

@@ -268,6 +268,12 @@ _TEMPLATE = """
     }}
     QToolButton#sortButton:hover {{ background: {_GLASS_STRONG}; color: {TEXT_PRIMARY}; }}
     QToolButton#sortButton::menu-indicator {{ image: none; width: 0; }}
+    QToolButton#locateButton {{
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid {_EDGE_SOFT}; border-radius: 16px; padding: 0;
+        min-width: 32px; max-width: 32px; min-height: 32px; max-height: 32px;
+    }}
+    QToolButton#locateButton:hover {{ background: {_GLASS_STRONG}; }}
     QToolButton#viewButton {{
         background: transparent; color: {TEXT_DISABLED};
         border: none; border-radius: 13px; padding: 0 13px;
@@ -515,9 +521,12 @@ _TEMPLATE = """
     QSpinBox#dialogSpin {{
         background: rgba(255, 255, 255, 0.035);
         border: 1px solid rgba(255, 255, 255, 0.07);
-        border-radius: 10px; min-height: 34px; padding: 0 10px;
+        border-radius: 10px; min-height: 34px; padding: 0;
         color: {TEXT_PRIMARY};
         selection-background-color: {ACCENT}; selection-color: {ACCENT_ON};
+    }}
+    QSpinBox#dialogSpin::up-button, QSpinBox#dialogSpin::down-button {{
+        width: 0; border: none; image: none;
     }}
     QSpinBox#dialogSpin:focus {{ border: 1px solid {ACCENT}; }}
     QScrollArea#settingsScroll {{ background: transparent; border: none; }}
@@ -545,6 +554,19 @@ _TEMPLATE = """
         border-bottom: 1px solid {DIVIDER}; padding: 3px 8px; font-weight: 600;
     }}
     QTableView#csvTable QTableCornerButton::section {{ background: {ELEVATED}; border: none; }}
+    QTabWidget#sheetTabs {{ background: {SURFACE}; border-radius: 10px; }}
+    QTabWidget#sheetTabs QTabBar {{ background: transparent; }}
+    QTabWidget#sheetTabs::pane {{ border: none; }}
+    QTabWidget#sheetTabs::tab-bar {{ left: 0; }}
+    QTabWidget#sheetTabs QTabBar::tab {{
+        background: transparent; color: {TEXT_SECONDARY}; border: none;
+        border-top: 2px solid transparent; padding: 5px 14px; margin-right: 2px;
+    }}
+    QTabWidget#sheetTabs QTabBar::tab:hover {{ color: {TEXT_PRIMARY}; }}
+    QTabWidget#sheetTabs QTabBar::tab:selected {{
+        color: {TEXT_PRIMARY}; border-top: 2px solid {ACCENT}; background: {SURFACE};
+    }}
+    QLabel#sheetNote {{ color: {TEXT_SECONDARY}; font-size: 11px; padding: 4px 8px; }}
     QTextBrowser#markdownPage {{
         background: {SURFACE}; color: {TEXT_PRIMARY}; border: 1px solid {BORDER};
         border-radius: 10px;

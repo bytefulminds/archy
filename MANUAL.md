@@ -41,8 +41,14 @@ without freezing the window.
 ## Browsing
 
 Walk the folders of an archive like a normal folder. Four views: **list**,
-**compact**, **thumbnails** and **large thumbnails**. The sidebar filters the
-archive by type: images, videos, documents and other files.
+**compact**, **thumbnails** and **large thumbnails**. In the thumbnail views
+the tiles grow with the width of the list until another column fits, so a
+row is always filled. Besides photos and videos, documents get a thumbnail
+too: the top of a PDF's first page, a web page or Markdown file as a small
+page, the first lines of a text or code file, and for Office files the picture
+Office saved with them or a small page of their text. A file Archy cannot preview
+keeps a dimmed icon, so you see at a glance what opens in the preview. The sidebar filters the archive by type: images,
+videos, documents and other files.
 
 - **Search the whole archive** by name or path with **Ctrl+Shift+F**; the
   results show where each file lives. Double-click one to go there.
@@ -50,6 +56,13 @@ archive by type: images, videos, documents and other files.
 - **Back and forward** through the folders you visited with the arrows at the
   start of the path, the mouse's back and forward buttons, or **Alt+Left** /
   **Alt+Right** (**Cmd+[** / **Cmd+]** on macOS).
+- **Find the selection again:** after scrolling away in a long folder, the
+  round button with the target, at the far left above the list, scrolls the
+  selected file back into the middle of the view.
+- **Keeps your place:** going back up (with the path, Back or Up) selects the
+  folder you came out of and scrolls to it, so a long folder does not start at
+  the top again. Coming back into a folder puts the cursor on the file you were
+  at.
 - **Jump to a folder next to this one:** click a **/** in the path to see the
   folders at that level (20 at a time); type to narrow the list down, use the
   arrow keys and Enter, or click one.
@@ -57,6 +70,14 @@ archive by type: images, videos, documents and other files.
   the sort button next to the views (in the list view also by clicking a
   column header). Folders always come first, in search results too. Archy
   remembers the sort for next time.
+- **Sort by a timestamp in the name:** for files whose name starts with a Unix
+  time, such as `1696512000--beach.jpg`, `1696512000-beach.jpg` or
+  `1696512000123_IMG_0042.jpg` (seconds or milliseconds, followed by `-`,
+  `--`, `_` or the extension), choose *Timestamp in name* in the sort menu.
+  Those files come first, oldest to newest (or the other way round), and the
+  files without one follow by name. In a folder with such names the list view
+  shows the time as a date in its own column, and pointing at a name shows it
+  in every view.
 
 **Archives inside an archive** (experimental): double-click a zip, 7z or tar
 (also .tar.gz) inside the archive to open it like a folder. It is read from
@@ -115,6 +136,16 @@ artist when the file has them.
 
 **PDF.** Scroll through the pages and zoom.
 
+**Word, Excel and PowerPoint.** A Word document (.docx) shows as a page with
+its headings, lists, tables and pictures; a PowerPoint deck (.pptx) as one card
+per slide with its text and pictures where they are on the slide; an Excel
+workbook (.xlsx) as a table per sheet, with the values as Excel last
+calculated them (the first 5,000 rows and 200 columns). These are previews:
+layout and fonts come close to Office, not exactly. Macros are never run, and
+nothing the document refers to outside the archive is loaded. The older formats
+(.doc, .xls, .ppt) and documents protected with a password in Office itself
+have no preview.
+
 **Text and code.** The encoding is detected automatically (UTF-8, UTF-16,
 older Windows code pages) and emoji show in colour. Some formats get more:
 
@@ -161,26 +192,43 @@ zip and 7z archives can be changed:
 - add files and folders (**Ctrl+Shift+A**, or drag them onto the window)
 - create a folder (**Ctrl+Shift+N**)
 - rename (**F2**) and delete (**Delete**)
-- edit small text files in a zip directly in the preview
+- edit small text files in a zip or 7z directly in the preview (in an
+  encrypted archive after unlocking it)
 
 Changes are collected first and written when you press **Save** (**Ctrl+S**).
 Archy then writes a complete new version next to the original, checks it, and
 only then puts it in place of the original, so a failed or cancelled save never
 damages your archive. A 7z keeps its password, encrypted file names, Store or
-compression, separate blocks and file times. Rar and the other libarchive
-formats are read-only.
+compression, separate blocks and file times. In a zip, the files you did not
+change are copied as they are, so a save takes about as long as copying the
+archive. Rar and the other libarchive formats are read-only.
 
 **The edit lock.** Archives that Archy only reads show a lock next to their
 name; its tooltip says why. Encrypted archives start locked, so nothing changes
-by accident. An encrypted 7z made with *Store* can be unlocked on purpose with
-one click; a dialog first explains what saving will do. An encrypted,
-compressed 7z stays locked, because saving it would mean compressing
-everything again.
+by accident. An encrypted zip, and an encrypted 7z made with *Store*, can be
+unlocked on purpose with one click; a dialog first explains what saving will
+do. In an encrypted zip the files you did not change stay exactly as they were
+(ZipCrypto or AES); new and changed files are encrypted with AES-256 and the
+same password. Note that the zip tools built into Windows and macOS cannot open
+AES-encrypted files; 7-Zip, WinZip and Archy can. An encrypted, compressed 7z
+is compressed again on every save, at roughly 2 MB per second. Up to 1 GB of
+content that takes a few minutes, so such an archive can be unlocked too: the
+dialog says about how long a save takes, and a save shows its progress and can
+be cancelled. A larger one stays locked, because a save would take hours.
 
 ## Privacy and temporary files
 
 Archy only writes to disk when you ask it to: when you extract, and when you
 save an edited archive. Everything else stays in memory.
+
+**Update check.** The one thing Archy asks the internet is whether there is a
+newer version, and only when you allow it: the first time it starts, Archy
+asks whether it may. It then asks GitLab, where Archy is published, for the
+latest release, sending only Archy's version number and your operating
+system; nothing about your archives or files. When there is a newer version you
+choose: *Go to download* (opens the download page in your browser), *Later* (asks
+again next time) or *Skip this version*. Switch it on or off, or check at once,
+under *Settings > General > Updates*.
 
 Some archives are simply bigger than your memory. For those, *Settings >
 Temporary files* has three work modes:
@@ -213,7 +261,8 @@ make thumbnails.
 Open the settings with the gear in the top bar or **Ctrl+,**:
 
 - **General:** language, start view, preview fit, compact rows, accent colours,
-  and whether to remember the window size and position.
+  whether to remember the window size and position, and whether to check for
+  a new version when Archy starts (with a *Check now* button).
 - **Temporary files:** the work mode, the location and cleaning up.
 - **Advanced:** memory limits and threads.
 - **About:** the version, who makes Archy, its license, and the open source
@@ -257,9 +306,19 @@ On macOS, read Cmd for Ctrl.
 
 How a 7z was created matters a lot for browsing speed. In a *solid* archive,
 many files are compressed together as one block, so reading one file means
-decompressing everything before it in that block. Archy reads a whole folder in
-one pass to soften this, but a folder spread over several large blocks is still
-slow.
+decompressing everything before it in that block. Archy softens this for
+archives as they are, without repacking:
+
+- It reads a whole folder in one pass.
+- When the archive was made by 7-Zip with several threads (the default on a
+  modern computer), the block has points where decoding can start fresh. Archy
+  finds them and starts at the nearest one before the folder, instead of at the
+  start of the block.
+- It keeps its place in a block after a folder, so moving on to the next folder
+  continues from there.
+
+Even so, the first folder deep inside a large block of an older or
+single-threaded archive still takes a while.
 
 For a backup you want to browse, choose in 7-Zip:
 
@@ -297,8 +356,6 @@ xar and ar, install the native libarchive library:
 | Windows | Optional: place `libarchive.dll` next to the app |
 
 `python scripts/check_libarchive.py` tells you whether Archy can find it.
-Optionally, `pip install -e ".[video-fallback]"` adds PyAV, which Archy then
-also uses for video thumbnails.
 
 ## For developers
 
@@ -338,12 +395,16 @@ languages are very welcome.
 
 ## Roadmap
 
-- **Next:** installers for Windows (Inno Setup), macOS (.dmg) and Linux
-  (AppImage), built in CI.
+- Install a new version from within Archy, when you choose to (Archy already
+  tells you about it).
+- Create a new archive in Archy (zip or 7z, with or without a password) and
+  put files in it.
+- Faster saves of compressed 7z archives, using several processor cores, so
+  larger compressed encrypted archives can be unlocked for editing too.
 - More interface languages (German, Polish, Russian, ...): contributions welcome.
 - Rar support on Windows without a separate libarchive install.
 - Sort by date taken, rating and camera.
-- Office documents: previews for doc, docx, xls and xlsx.
+- Previews of the older Office formats (.doc, .xls, .ppt).
 
 ## Built with
 
@@ -353,8 +414,12 @@ languages are very welcome.
 [libarchive-c](https://github.com/Changaco/python-libarchive-c),
 [pycryptodomex](https://www.pycryptodome.org),
 [psutil](https://github.com/giampaolo/psutil),
-[charset-normalizer](https://github.com/jawah/charset_normalizer) and
+[charset-normalizer](https://github.com/jawah/charset_normalizer),
 [pi-heif](https://github.com/bigcat88/pillow_heif) with
-[Pillow](https://python-pillow.org).
+[Pillow](https://python-pillow.org), [PyAV](https://pyav.basswood-io.com) for
+the video thumbnails, and for the Office previews
+[mammoth](https://github.com/mwilliamson/python-mammoth),
+[python-pptx](https://github.com/scanny/python-pptx) and
+[openpyxl](https://openpyxl.readthedocs.io).
 The interface uses the Inter, Sora and JetBrains Mono fonts (SIL Open Font
 License).

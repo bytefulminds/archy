@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import time
+
 from PySide6.QtWidgets import (
     QLabel,
     QProgressBar,
@@ -8,6 +10,7 @@ from PySide6.QtWidgets import (
 
 from archy.core.tree import TreeNode, iter_file_entries
 from archy.i18n import tr
+from archy.services.formatting import format_size
 from archy.ui import soft_dialog
 from archy.ui.extract_dialog import ExtractProgressDialog
 
@@ -35,8 +38,11 @@ class ExtractMixin:
         # slow solid-7z folder load shows "file X of N" instead of nothing.
         self._prefetch_label = QLabel("")
         self._prefetch_bar = QProgressBar()
-        self._prefetch_bar.setFixedWidth(160)
+        self._prefetch_bar.setFixedWidth(110)
         self._prefetch_bar.setTextVisible(False)
+        self._prefetch_files = (0, 0)  # files decoded, files in the pass
+        self._prefetch_bytes: tuple[int, int] | None = None  # compressed bytes read
+        self._prefetch_since = 0.0
 
         # Thumbnail progress for the current folder, so a slow grid fill is
         # visible too. Shown only while the folder prefetch bar is not (one
@@ -65,28 +71,66 @@ class ExtractMixin:
         self._thumbs.set_pass_active(True)
         if total <= 1:
             return  # a single file is not worth a folder-load indicator
-        self._prefetch_bar.setRange(0, total)
-        self._prefetch_bar.setValue(0)
-        self._prefetch_label.setText(tr("progress.folder_loading", done=0, total=total))
+        self._prefetch_files = (0, total)
+        self._prefetch_bytes = None
+        self._prefetch_since = time.monotonic()
         self._prefetch_label.show()
         self._prefetch_bar.show()
+        self._show_prefetch()
         self._update_thumb_indicator()
 
     def _on_prefetch_progress(self, done: int, total: int) -> None:
         # done counts files that are decoded AND (images) thumbnailed.
         if total <= 1:
             return
-        self._prefetch_bar.setRange(0, total)
+        self._prefetch_files = (done, total)
         if not self._prefetch_bar.isVisible():
             self._prefetch_label.show()
             self._prefetch_bar.show()
             self._update_thumb_indicator()
-        self._prefetch_bar.setValue(done)
-        self._prefetch_label.setText(tr("progress.folder_loading", done=done, total=total))
+        self._show_prefetch()
+
+    def _on_prefetch_activity(self, done: int, total: int) -> None:
+        """A heartbeat while the pass runs: the compressed bytes read so far
+        when the backend can tell (a solid 7z), else just "still busy"."""
+        if not self._prefetch_bar.isVisible():
+            return
+        self._prefetch_bytes = (done, total) if total > 0 else None
+        self._show_prefetch()
+
+    def _show_prefetch(self) -> None:
+        """Bar and text of the folder pass. A big solid 7z can decode for
+        minutes before the first file of the folder comes out: the bar then
+        follows the bytes read, or moves as a busy bar, and the text says how
+        far it got or how long it has been busy - never a frozen "0 / N"."""
+        done, total = self._prefetch_files
+        text = tr("progress.folder_loading", done=done, total=total)
+        detail = ""
+        if self._prefetch_bytes is not None:
+            read, size = self._prefetch_bytes
+            self._prefetch_bar.setRange(0, 1000)
+            self._prefetch_bar.setValue(int(1000 * read / size))
+            text += f" · {read * 100 // size}%"  # short: the strip is narrow
+            detail = tr("progress.folder_bytes", read=format_size(read), size=format_size(size))
+        elif done > 0:
+            self._prefetch_bar.setRange(0, total)
+            self._prefetch_bar.setValue(done)
+        else:
+            self._prefetch_bar.setRange(0, 0)  # busy: moves on its own
+            elapsed = int(time.monotonic() - self._prefetch_since)
+            if elapsed >= 3:
+                text += f" · {elapsed // 60}:{elapsed % 60:02d}"
+        self._prefetch_label.setText(text)
+        self._prefetch_label.setToolTip(detail)
+        self._prefetch_bar.setToolTip(detail)
+        # "Ready" next to a folder that is still loading says the wrong thing,
+        # and the strip needs the room.
+        self._status_msg.setVisible(False)
 
     def _on_prefetch_done(self) -> None:
         self._prefetch_label.hide()
         self._prefetch_bar.hide()
+        self._status_msg.setVisible(True)
         self._thumbs.set_pass_active(False)
         self._update_thumb_indicator()
 

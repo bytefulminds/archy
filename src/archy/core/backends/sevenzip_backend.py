@@ -18,6 +18,13 @@ from archy.core.backends.sevenzip_direct import (
     read_span,
     read_whole,
 )
+from archy.core.backends.sevenzip_solid import (
+    Block,
+    Member,
+    SolidCancelled,
+    SolidIndex,
+    SolidReader,
+)
 from archy.core.errors import ArchiveError, EncryptedArchiveError
 from archy.i18n import tr
 
@@ -99,6 +106,38 @@ class _Exit:
         return self._context.__exit__(*exc)
 
 
+class _CountingFile(io.FileIO):
+    """The archive file, counting the bytes read from it: how far a long
+    decode has come (see SevenZipBackend.group_progress). One int, written by
+    the decoding thread and only read elsewhere."""
+
+    consumed = 0
+
+    def readinto(self, buffer) -> int | None:  # noqa: ANN001
+        count = super().readinto(buffer)
+        if count:
+            self.consumed += count
+        return count
+
+
+def _packed_total(archive: object, wanted: set[str]) -> int:
+    """Compressed bytes of the blocks that hold any of ``wanted`` (names as in
+    the archive): what decoding them reads from disk at most."""
+    header = getattr(archive, "header", None)
+    streams = getattr(header, "main_streams", None)
+    if streams is None:
+        return 0
+    sizes = [int(size) for size in streams.packinfo.packsizes]
+    index = total = 0
+    for folder in streams.unpackinfo.folders:
+        packed = int(getattr(folder, "num_packedstreams", None) or len(folder.packed_indices))
+        names = {str(f.filename).replace("\\", "/") for f in getattr(folder, "files", None) or ()}
+        if names & wanted:
+            total += sum(sizes[index : index + packed])
+        index += packed
+    return total
+
+
 def _open_7z(path: object, password: str | None):  # noqa: ANN202 - py7zr.SevenZipFile
     """Open a 7z for reading, the way Archy needs it.
 
@@ -113,7 +152,8 @@ def _open_7z(path: object, password: str | None):  # noqa: ANN202 - py7zr.SevenZ
     import py7zr
 
     _limit_decode_chunks()
-    fh = open(path, "rb")  # noqa: SIM115 - closed by the archive's close()
+    raw = _CountingFile(os.fspath(path), "rb")  # type: ignore[arg-type]
+    fh = io.BufferedReader(raw)  # closed by the archive's close()
     try:
         archive = py7zr.SevenZipFile(fh, mode="r", password=password)
     except BaseException:
@@ -128,6 +168,7 @@ def _open_7z(path: object, password: str | None):  # noqa: ANN202 - py7zr.SevenZ
             fh.close()
 
     archive.close = close
+    archive.archy_raw = raw  # type: ignore[attr-defined] - read progress
     return archive
 
 
@@ -247,6 +288,7 @@ class SevenZipBackend(ArchiveBackend):
         # decrypting) the whole index: 100,000 files took ~2 s per open, which
         # every single preview or thumbnail paid again.
         self._shared = None
+        self._group: tuple[_CountingFile, int, int] | None = None  # see group_progress
         self._shared_password: str | None = None
         # Renames are staged as a name map (new name -> name in the archive),
         # not as bytes: renaming a folder of large videos must not read them
@@ -258,6 +300,11 @@ class SevenZipBackend(ArchiveBackend):
         # any offset, without py7zr (see sevenzip_direct.py). Built with the
         # listing; None until then, or when the index could not be read.
         self._direct: StoreIndex | None = None
+        # Files in compressed solid blocks (LZMA2/LZMA) are read by Archy's
+        # own decoder, which jumps to the nearest dictionary reset and keeps
+        # decoders where they stopped (see sevenzip_solid.py). None until the
+        # listing, or when there is nothing it can read.
+        self._solid: SolidReader | None = None
         self._verified: str | None = None  # password a direct read proved right
         self._verify_lock = threading.Lock()
 
@@ -285,12 +332,19 @@ class SevenZipBackend(ArchiveBackend):
             with contextlib.suppress(Exception):
                 archive.close()
 
+    def _drop_solid(self) -> None:
+        reader, self._solid = self._solid, None
+        if reader is not None:
+            reader.close()
+
     def close(self) -> None:
         self._drop_shared()
+        self._drop_solid()
         super().close()
 
     def _invalidate_caches(self) -> None:
         self._drop_shared()  # the file was rewritten by a save
+        self._drop_solid()
         self._profile = None
         self._disk = None
         self._direct = None
@@ -313,6 +367,7 @@ class SevenZipBackend(ArchiveBackend):
         self._profile = None  # whether the names are encrypted depends on it
         self._disk = None
         self._direct = None
+        self._drop_solid()
 
     # ---------------------------------------------------------- edit profile
     def edit_profile(self):  # noqa: ANN201 - EditProfile
@@ -340,6 +395,13 @@ class SevenZipBackend(ArchiveBackend):
         if index is None or entry.is_dir or entry.path in self._pending:
             return None
         return index.span(self._source_path(entry.path))
+
+    def _solid_member(self, entry: ArchiveEntry) -> tuple[SolidReader, Block, Member] | None:
+        reader = self._solid
+        if reader is None or entry.is_dir or entry.path in self._pending:
+            return None
+        hit = reader.index.get(self._source_path(entry.path))
+        return None if hit is None else (reader, *hit)
 
     def _reads_freely(self, entry: ArchiveEntry) -> bool:
         # A direct read uses its own file handle: it never waits for a folder
@@ -418,6 +480,11 @@ class SevenZipBackend(ArchiveBackend):
                     self._direct = StoreIndex.build(archive)
                 except Exception:  # noqa: BLE001 - direct reads are an optimisation
                     self._direct = None
+                self._drop_solid()
+                with contextlib.suppress(Exception):  # an optimisation: py7zr reads anyway
+                    solid = SolidIndex.build(archive)
+                    if len(solid):
+                        self._solid = SolidReader(self.path, solid)
         except py7zr.Bad7zFile as exc:
             raise ArchiveError(f"Not a valid 7z archive: {self.path}: {exc}") from exc
         except py7zr.PasswordRequired as exc:
@@ -473,6 +540,22 @@ class SevenZipBackend(ArchiveBackend):
         span = self._span(entry)
         if span is not None:
             return self._read_direct(span, self._effective_password(password), max_bytes)
+        solid = self._solid_member(entry)
+        if solid is not None:
+            reader, block, member = solid
+            pw = self._effective_password(password)
+            try:
+                data = reader.read(block, member, pw, max_bytes)
+            except EncryptedArchiveError as exc:
+                raise EncryptedArchiveError(
+                    f"Entry is encrypted or the password is wrong: {entry.path}"
+                ) from exc
+            except (ArchiveError, OSError):
+                pass  # an unusual stream: py7zr below gets its own go
+            else:
+                if block.aes is not None and len(data) == member.size:
+                    self._verified = pw  # checked against the file's CRC
+                return data
         source = self._source_path(entry.path)
 
         import py7zr
@@ -524,15 +607,11 @@ class SevenZipBackend(ArchiveBackend):
                 raise ArchiveError(f"Could not read entry {entry.path}: {exc}") from exc
 
     def _read_group_uncached(self, entries, *, password=None, on_item=None, is_cancelled=None):  # noqa: ANN001, ANN201, E501
-        # One pass over the solid block(s): py7zr decodes each needed block once
-        # and hands back every requested target, instead of restarting from the
-        # block start per file. This is the whole point of the folder prefetch.
-        # Each member is handed over as soon as it is decoded (see
-        # _make_delivering_factory), after checking its CRC ourselves: py7zr
-        # only verifies it after handing the data over, and a wrong password
-        # must never put garbage in the buffer.
-        import zlib
-
+        # One pass over the solid block(s), each member handed over as soon as
+        # it is decoded, instead of restarting from the block start per file.
+        # This is the whole point of the folder prefetch. Three readers, in
+        # order: stored files directly, LZMA2/LZMA blocks with Archy's own
+        # decoder (sevenzip_solid.py), and whatever is left with py7zr.
         pw = self._effective_password(password)
         # Stored files: read directly, one after another in archive order, so
         # the disk reads front to back. No py7zr, and no lock that on-demand
@@ -552,6 +631,52 @@ class SevenZipBackend(ArchiveBackend):
         entries = [e for e in entries if e.path not in done]
         if not entries:
             return {}
+        out: dict[str, bytes] = {}
+        rest = self._read_group_solid(entries, pw, on_item, is_cancelled, out)
+        if rest:  # None when cancelled
+            out.update(self._read_group_py7zr(rest, pw, on_item, is_cancelled))
+        return out
+
+    def _read_group_solid(self, entries, pw, on_item, is_cancelled, out):  # noqa: ANN001, ANN201
+        """Read what Archy's own decoder can (sevenzip_solid.py), into
+        ``on_item`` or else ``out``; returns the entries left for py7zr, or
+        None when cancelled."""
+        reader = self._solid
+        hits = [(e, self._solid_member(e)) for e in entries]
+        mine = [(e, hit) for e, hit in hits if hit is not None]
+        if reader is None or not mine:
+            return entries
+        shown = {hit[2].name: e.path for e, hit in mine}  # source -> shown
+        delivered: set[str] = set()
+
+        def deliver(member: Member, data: bytes) -> None:
+            delivered.add(member.name)
+            if on_item is not None:
+                on_item(shown[member.name], data)
+            else:
+                out[shown[member.name]] = data
+
+        try:
+            reader.read_group(
+                [(block, member) for _e, (_r, block, member) in mine],
+                pw,
+                deliver,
+                is_cancelled or (lambda: False),
+                lambda _block, _members, _exc: None,  # left for py7zr below
+            )
+        except SolidCancelled:
+            return None
+        except Exception:  # noqa: BLE001 - py7zr gets the rest
+            pass
+        return [e for e, hit in hits if hit is None or hit[2].name not in delivered]
+
+    def _read_group_py7zr(self, entries, pw, on_item, is_cancelled):  # noqa: ANN001, ANN201
+        # py7zr decodes each needed block once and hands back every requested
+        # target (see _make_delivering_factory), after we check its CRC: py7zr
+        # only verifies it after handing the data over, and a wrong password
+        # must never put garbage in the buffer.
+        import zlib
+
         shown_as = {self._source_path(e.path): e.path for e in entries}  # source -> shown
         wanted = set(shown_as)
         out: dict[str, bytes] = {}
@@ -576,7 +701,7 @@ class SevenZipBackend(ArchiveBackend):
             archive = shared.__enter__()
         except Exception:  # noqa: BLE001 - prefetch is best-effort
             return out
-        with _Exit(shared):
+        with _Exit(shared), self._tracking_group(archive, wanted):
             with contextlib.suppress(Exception):  # CRCs are an extra safety net
                 for info in archive.files:
                     crc = getattr(info, "crc32", None)
@@ -594,6 +719,32 @@ class SevenZipBackend(ArchiveBackend):
                     deliver(filename, product.take())
         return out
 
+    @contextlib.contextmanager
+    def _tracking_group(self, archive: object, wanted: set[str]) -> Iterator[None]:
+        """Make group_progress() report this decode while it runs."""
+        raw = getattr(archive, "archy_raw", None)
+        total = 0
+        with contextlib.suppress(Exception):
+            total = _packed_total(archive, wanted)
+        if raw is not None and total > 0:
+            self._group = (raw, raw.consumed, total)
+        try:
+            yield
+        finally:
+            self._group = None
+
+    def group_progress(self) -> tuple[int, int] | None:
+        reader = self._solid
+        if reader is not None:
+            progress = reader.progress()  # Archy's own decoder: decoded bytes
+            if progress is not None:
+                return progress
+        group = self._group
+        if group is None:
+            return None
+        raw, start, total = group
+        return min(total, max(0, raw.consumed - start)), total
+
     def _stream_uncached(self, entry: ArchiveEntry, sink) -> None:  # noqa: ANN001
         # py7zr writes the decoded member in chunks into the IO its factory
         # hands out; this one forwards each chunk straight to the sink, so a
@@ -603,6 +754,27 @@ class SevenZipBackend(ArchiveBackend):
         if span is not None:
             copy_to(self.path, span, self._effective_password(None), sink)
             return
+        solid = self._solid_member(entry)
+        if solid is not None:
+            reader, block, member = solid
+            sent = False
+
+            def forward(piece: bytes) -> None:
+                nonlocal sent
+                sent = True
+                sink(piece)
+
+            try:
+                reader.stream(block, member, self._effective_password(None), forward)
+                return
+            except EncryptedArchiveError as exc:
+                raise EncryptedArchiveError(
+                    f"Entry is encrypted or the password is wrong: {entry.path}"
+                ) from exc
+            except (ArchiveError, OSError):
+                if sent:
+                    raise  # part of it went out already: no second go
+                # an unusual stream: py7zr below gets its own go
 
         import py7zr
         from py7zr.io import Py7zIO, WriterFactory

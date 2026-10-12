@@ -11,7 +11,14 @@ from PySide6.QtGui import QFontDatabase
 _FONT_DIR = Path(__file__).resolve().parent.parent.parent / "resources" / "fonts"
 
 
+_loaded = False
+
+
 def load_fonts() -> None:
+    global _loaded
+    if _loaded:  # the splash screen loads them before theme.apply() does
+        return
+    _loaded = True
     for name in ("Inter.ttf", "JetBrainsMono.ttf", "Sora.ttf"):
         path = _FONT_DIR / name
         if path.exists():

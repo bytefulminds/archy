@@ -36,6 +36,12 @@ MODULES = (
     "psutil",
     "PIL.Image",
     "pi_heif",
+    "av",
+    "certifi",
+    "mammoth",
+    "openpyxl",
+    "pptx",
+    "lxml.etree",
     "PySide6.QtWidgets",
     "PySide6.QtMultimedia",
     "PySide6.QtMultimediaWidgets",
@@ -43,6 +49,7 @@ MODULES = (
     "PySide6.QtPdfWidgets",
     "PySide6.QtWebEngineCore",
     "PySide6.QtWebEngineWidgets",
+    "PySide6.QtQuickWidgets",  # macOS: keeps the window from being rebuilt (main_window)
     "archy.core.backends.sevenzip_backend",
     "archy.core.backends.zip_backend",
     "archy.core.backends.tar_backend",
@@ -78,6 +85,62 @@ def _check_aes_zip() -> None:
         archive.setpassword(b"check")
         if archive.read("check.txt") != b"archy":
             raise RuntimeError("AES zip did not round-trip")
+
+
+def _check_office() -> None:
+    """An Excel sheet and a PowerPoint deck, made and previewed in memory
+    (python-pptx needs its template files in the package)."""
+    import openpyxl
+    from pptx import Presentation
+
+    from archy.services import office
+
+    book = openpyxl.Workbook()
+    book.active.append(["archy", 1])
+    buffer = io.BytesIO()
+    book.save(buffer)
+    if office.excel_sheets(buffer.getvalue())[0].rows != [["archy", "1"]]:
+        raise RuntimeError("Excel sheet did not read back")
+    deck = Presentation()
+    deck.slides.add_slide(deck.slide_layouts[0]).shapes.title.text = "archy"
+    buffer = io.BytesIO()
+    deck.save(buffer)
+    if "archy" not in office.powerpoint_page(buffer.getvalue()).html:
+        raise RuntimeError("PowerPoint slide did not read back")
+
+
+def _check_video_thumbnail() -> None:
+    """Encode a short video in memory and make a thumbnail of it the way the
+    thumbnail workers do: without PyAV (or its FFmpeg libraries) in the
+    package, videos silently get no thumbnail."""
+    import av
+
+    from archy.ui.thumbnail_loader import _decode_video_frame
+
+    out = io.BytesIO()
+    with av.open(out, "w", format="mp4") as container:
+        stream = container.add_stream("mpeg4", rate=10)
+        stream.width, stream.height, stream.pix_fmt = 64, 48, "yuv420p"
+        for i in range(12):
+            frame = av.VideoFrame(64, 48, "rgb24")
+            frame.planes[0].update(bytes([i * 20 % 256, 120, 200]) * (64 * 48))
+            for packet in stream.encode(frame.reformat(format="yuv420p")):
+                container.mux(packet)
+        for packet in stream.encode():
+            container.mux(packet)
+    image = _decode_video_frame(out.getvalue())
+    if image is None or image.isNull() or (image.width(), image.height()) != (64, 48):
+        raise RuntimeError("no frame decoded from a test video")
+
+
+def _check_certificates() -> None:
+    """The update check verifies GitLab's certificate with certifi's bundle;
+    without the file in the package every check would fail."""
+    from archy.services import updates
+
+    context = updates._tls_context()
+    if not context.get_ca_certs() and not context.cert_store_stats().get("x509"):
+        raise RuntimeError("no certificates loaded")
 
 
 def _check_resources() -> None:
@@ -240,6 +303,9 @@ def run(out: Callable[[str], None] | None = None) -> int:
         *((f"import {name}", lambda name=name: importlib.import_module(name)) for name in MODULES),
         ("7z round trip", _check_7z),
         ("AES zip round trip", _check_aes_zip),
+        ("Office previews", _check_office),
+        ("video thumbnail", _check_video_thumbnail),
+        ("certificates for the update check", _check_certificates),
         ("resources", _check_resources),
     ]
     if not os.environ.get("ARCHY_NO_WEBENGINE"):

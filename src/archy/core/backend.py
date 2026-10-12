@@ -301,6 +301,25 @@ class ArchiveBackend(ABC):
                 self._cache_put(key, data)
         return data
 
+    def peek_bytes(self, entry: ArchiveEntry, *, max_bytes: int | None = None) -> bytes | None:
+        """The entry's bytes when they are in memory already (a staged edit,
+        the read cache or the folder buffer in RAM), else None. Never reads
+        the archive, never waits for a running read or folder pass: cheap
+        enough for the UI thread."""
+        if entry.is_dir or self._closed:
+            return None
+        if entry.path in self._pending:
+            staged = self._pending[entry.path] or b""
+            return staged[:max_bytes] if max_bytes is not None else staged
+        with self._read_lock:
+            cached = self._read_cache.get((entry.path, max_bytes))
+            if cached is None and max_bytes is not None:
+                cached = self._read_cache.get((entry.path, None))
+            data = self._folder_buffer.get(entry.path) if cached is None else cached
+        if data is None:
+            return None
+        return data[:max_bytes] if max_bytes is not None else data
+
     def _from_folder(self, path: str, max_bytes: int | None) -> bytes | None:
         """The entry from the folder pass: RAM, or decrypted from the encrypted
         temp store. None when the pass does not hold it."""
@@ -483,6 +502,12 @@ class ArchiveBackend(ABC):
         entry. A caller that wants it cheaply should wait for the prefetch."""
         with self._read_lock:
             return path in self._prefetching
+
+    def group_progress(self) -> tuple[int, int] | None:
+        """(bytes done, bytes total) of a read_group() decode that is running,
+        for backends that can tell (a solid 7z: the compressed bytes read of
+        the blocks it decodes); None otherwise. Safe to call from any thread."""
+        return None
 
     def read_group(
         self,

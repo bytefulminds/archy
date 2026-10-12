@@ -7,7 +7,7 @@
 **Look inside your archives like a normal folder: browse, preview and take out
 what you need, without unpacking anything.**
 
-**Version 0.2.1** · [download](https://gitlab.com/bytefulminds/archy/-/releases) for Windows, macOS and Linux
+**Version 0.3.0** · [download](https://gitlab.com/bytefulminds/archy/-/releases) for Windows, macOS and Linux
 
 [![pipeline](https://gitlab.com/bytefulminds/archy/badges/main/pipeline.svg)](https://gitlab.com/bytefulminds/archy/-/pipelines)
 ![license: MIT](https://img.shields.io/badge/license-MIT-45C0CD)
@@ -25,7 +25,9 @@ read a document, and copy out only the files you need. Nothing you look at is
 unpacked to your disk.
 
 It was made for big, password-protected backups, such as a 50 GB archive with a
-hundred thousand photos, where "unpack everything first" is not an option.
+hundred thousand photos, where "unpack everything first" is not an option. Old
+backups too: Archy does not ask you to pack them again before it can show them
+quickly.
 
 ## What you can do with Archy
 
@@ -54,14 +56,38 @@ their page count and author.
   <img src="docs/screenshots/preview-html.png" alt="A web page from the archive rendered with its own stylesheet and banner image" width="49%">
 </p>
 
-### Data at a glance
-
-CSV files open as a table with every column in its own colour. JSON, YAML, TOML
-and XML are shown in the colours you know from code editors.
+Word documents show as a page with their headings, tables and pictures, and
+PowerPoint decks as one card per slide, without Office and without running a
+single macro.
 
 <p align="center">
+  <img src="docs/screenshots/preview-word.png" alt="A Word travel report shown as a page with headings, text and a photo" width="49%">
+  <img src="docs/screenshots/preview-powerpoint.png" alt="A PowerPoint deck shown as slide cards, the first with a photo and a title on it" width="49%">
+</p>
+
+### Data at a glance
+
+Excel workbooks open as a table per sheet, with the values Excel last
+calculated. CSV files open as a table with every column in its own colour.
+JSON, YAML, TOML and XML are shown in the colours you know from code editors.
+
+<p align="center">
+  <img src="docs/screenshots/preview-excel.png" alt="An Excel workbook of travel expenses shown as a table, with a tab for each sheet" width="49%">
   <img src="docs/screenshots/preview-csv.png" alt="A CSV file of travel expenses shown as a table with coloured columns" width="49%">
-  <img src="docs/screenshots/preview-json.png" alt="A JSON file with keys, text, numbers and true/false in different colours" width="49%">
+</p>
+
+### Big backups, your way
+
+Documents get thumbnails too, so a folder of reports, slides and PDFs is as easy
+to scan as a folder of photos. Phone exports named after a Unix time (such as
+`1780720200-breakfast.jpg`) can be sorted on that time, which the list shows
+as a date. Going back up keeps your place, and one button brings the selected
+file back into view in a long folder. Large solid 7z archives made by 7-Zip
+open their folders much faster than before, without repacking.
+
+<p align="center">
+  <img src="docs/screenshots/browse-documents.png" alt="Thumbnails of a Word file, a PowerPoint deck, an Excel sheet, a PDF, Markdown and text files, with a deck open in the preview" width="49%">
+  <img src="docs/screenshots/sort-timestamp.png" alt="Photos whose names start with a Unix time, sorted on it, with the time shown as a date in its own column" width="49%">
 </p>
 
 ### Find a word, take out what you need
@@ -76,10 +102,14 @@ folder or everything, with a clear progress window, or simply drag files out.
 
 ### Safe changes, private by design
 
-Add, rename and delete files in zip and 7z archives; your original is only
-replaced after the new version has been written and checked. Encrypted
-archives start locked so nothing changes by accident. Previews are made in
-memory, passwords are never stored, and nothing is loaded from the internet.
+Add, rename and delete files in zip and 7z archives, and edit small text files
+right in the preview; your original is only replaced after the new version has
+been written and checked. Encrypted archives start locked so nothing changes by
+accident. An encrypted zip, a 7z made with Store, and a compressed 7z of up to
+1 GB can be unlocked for editing, and stay encrypted with the same password.
+Previews are made in memory, passwords are never stored, and nothing is loaded
+from the internet. If you allow it, Archy only asks whether there is a new
+version, and lets you know.
 
 <p align="center">
   <img src="docs/screenshots/unlock-dialog.png" alt="The dialog that explains what unlocking an encrypted backup for editing means" width="49%">
@@ -97,7 +127,7 @@ English and Dutch, with room for more languages.
 
 Download Archy from the
 [releases page](https://gitlab.com/bytefulminds/archy/-/releases): the
-`setup.exe` for Windows, the `.dmg` for your Mac (Apple Silicon or Intel) or the
+`setup.exe` for Windows, the `.dmg` for your Mac (Apple Silicon, macOS 14 or newer) or the
 `.AppImage` for Linux. The apps are not signed yet; the release notes say how
 to open them the first time.
 

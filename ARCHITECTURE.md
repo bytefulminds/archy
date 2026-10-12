@@ -60,6 +60,8 @@ third-party components with their licenses, and the notices text built from
   - `sevenzip_backend.py` (`SevenZipBackend`) - read + write for 7z (`py7zr`).
   - `sevenzip_direct.py` - direct reads for 7z files made with Store (no
     compression, encrypted or not); see "Stored 7z: direct reads" below.
+  - `sevenzip_solid.py` - Archy's own reader for compressed solid blocks
+    (LZMA2/LZMA, encrypted or not); see "Compressed solid 7z" below.
   - `sevenzip_writer.py` - the 7z save: a streaming rewrite next to the
     original, checked before it replaces the original (see "Saving a 7z").
   - `tar_backend.py` (`TarBackend`) - read-only tar/tar.gz/tar.bz2/tar.xz via
@@ -97,7 +99,7 @@ third-party components with their licenses, and the notices text built from
 ### services/ - stateless helpers
 
 - `formatting.py` - human sizes, dates, ratios.
-- `preview.py` - `PreviewKind` (TEXT / IMAGE / PDF / VIDEO / AUDIO /
+- `preview.py` - `PreviewKind` (TEXT / IMAGE / PDF / VIDEO / AUDIO / OFFICE /
   UNSUPPORTED) and `kind_for_name` (by extension). Music uses the video
   player without a picture (`providers._AudioStage`: cover art, title, artist).
 - `providers.py` - builds the actual Qt preview widget from bytes
@@ -142,6 +144,22 @@ third-party components with their licenses, and the notices text built from
   released), then pi-heif (decode-only pillow-heif) / Pillow for HEIC and AVIF where Qt has no
   plugin (Qt reads HEIC only on macOS). A `name` routes camera RAW and PSD
   to `raw_decode.py` first (Qt would read a RAW's tiny TIFF thumbnail).
+- `doc_thumbs.py` - thumbnails of documents, made on the thumbnail workers:
+  the top of a PDF's first page (QtPdf), HTML/Markdown drawn with a
+  QTextDocument that loads nothing the page refers to, and the first lines of
+  a text file. Only the first 16 KB of a text file is read.
+- `office.py` - Word, Excel and PowerPoint previews, Qt-free: .docx to an
+  HTML page (mammoth), .pptx to one HTML card per slide with its text boxes
+  and pictures positioned in percent and font sizes in container units
+  (python-pptx), .xlsx to the values of each sheet (openpyxl, read-only,
+  `data_only`: the values Excel last calculated, capped at 5,000 rows by 200
+  columns). Pictures become resources of the page ("media/..."), served by the
+  web view like the files next to an HTML page; EMF/WMF are left out.
+  `embedded_thumbnail` reads the docProps/thumbnail picture Office may save;
+  `doc_thumbs.office_thumbnail` falls back to a small page of the text.
+  `providers` shows pages in the web view (or `OfflineBrowser`) and sheets as
+  tables in a `QTabWidget`. Macros are never looked at; password-protected
+  Office files (an OLE container, not a zip) are reported as such.
 - `raw_decode.py` - camera RAW: the file is scanned for embedded JPEG streams,
   their size read from the JPEG frame header, and the largest one Qt decodes
   is used (lossless SOF3 sensor data is skipped), turned upright by the RAW's
@@ -149,6 +167,20 @@ third-party components with their licenses, and the notices text built from
   PSD: Pillow's composite image, else the JPEG thumbnail in image resource
   1036/1033. `file_details` reads RAW EXIF from Pillow, the CR3 CMT boxes or
   the embedded JPEG.
+- `name_stamp.py` - `name_timestamp(name)`: the Unix time a file name starts
+  with (seconds, milliseconds, microseconds or nanoseconds, followed by `-`,
+  `--`, `_` or the extension; only 1973-2100 counts), or None. The model's
+  hidden column 6 ("Timestamp in name") sorts on it; the list view shows that
+  column only in a folder where a name has one (`has_name_times`), and the
+  name's tooltip shows the date in every view.
+- `updates.py` - the update check, the only network request Archy makes and
+  only when allowed (setting `updates/check`: "ask" until the first start
+  asks, then "on"/"off"): one GET to GitLab's
+  `releases/permalink/latest` with urllib and certifi's certificates (a
+  packaged app cannot rely on the build Python's certificate paths), and
+  version comparison. `ui/main_window/updates.py` (`UpdatesMixin`) runs it on a
+  thread after start-up (`app.run` calls `schedule_update_check`, tests never
+  do) and shows Go to download / Later / Skip this version.
 - `temp_files.py` - `TempManager`: temp-files mode, the per-session encrypted
   store and its cleanup.
 - `encrypted_device.py` - `EncryptedBlobDevice`, a decrypting QIODevice so Qt
@@ -227,7 +259,37 @@ click never waits for a folder pass. The folder pass itself reads stored files
 the same way, in archive order. Decryption works in place in one buffer: every
 extra copy holds the GIL, which the UI thread needs. A partial read or a stream has no CRC to
 catch a wrong password, so the password is first proved once on the smallest
-encrypted file. Compressed blocks keep going through py7zr.
+encrypted file. Compressed blocks go through `sevenzip_solid.py` (below) or
+py7zr.
+
+### Compressed solid 7z (`core/backends/sevenzip_solid.py`)
+
+In a compressed solid block every file sits in one LZMA2/LZMA stream, and py7zr
+decodes (and CRC-checks) everything before a file to reach it, from the block
+start, for every read. For blocks made of one LZMA2 or LZMA coder, optionally
+behind 7zAES (`SolidIndex.build()`; others such as BCJ, PPMd or BZip2 keep
+going through py7zr), `SolidReader` decodes with the stdlib `lzma` module in raw
+mode and avoids most of that work, on archives as they are:
+
+- **Dictionary resets.** 7-Zip compressing with several threads splits an LZMA2
+  stream into pieces that each start with an empty dictionary (every 4x the
+  dictionary size). Decoding can start at any of them. `_Resets` finds them by
+  walking the LZMA2 chunk headers (a few bytes every 64 KB, nothing decoded;
+  with AES each header is decrypted on its own, CBC allows that) up to the
+  offset a read needs, and keeps them for the session. A stream with no reset
+  after `max(4x dictionary, 256 MB)` was made by one thread: the walk stops.
+- **Parked decoders.** After a read the decoder stays where it stopped (up to
+  three, within a memory budget for their dictionaries), so the next folder
+  further on continues from there. A file more than 64 MB past a decoder is
+  read by another one, so a block sorted by file type (all photos, then all
+  text files) gets a decoder per kind that only moves forward.
+- For every read the reader picks the closest start at or before the file: a
+  parked decoder, a reset point, or the block start. Bytes decoded only to get
+  past them are not CRC-checked; every file handed over is.
+
+Reads still run under `_io_lock`. `group_progress()` then reports decoded bytes
+(from the chosen start to the last wanted file). A read that fails in an
+unexpected way (not a wrong password) falls back to py7zr.
 
 Any change here must preserve these properties: do not add per-file disk writes,
 do not read whole large entries into RAM on the UI thread, and keep the
@@ -307,9 +369,13 @@ shows a lock next to the archive name whenever an archive is read-only, with a
 tooltip that explains why:
 
 - not writable at all (rar, tar, ...): a fixed lock;
-- an encrypted zip: a fixed lock (saving encrypted zips is not supported yet);
-- an encrypted, compressed 7z: a fixed lock (a rewrite would recompress
-  everything, hours on a big archive);
+- an encrypted zip: a lock the user can open (the dialog explains that new and
+  changed files are encrypted with AES-256, which the zip tools built into
+  Windows and macOS cannot open). A zip save is always cheap, see below;
+- an encrypted, compressed 7z: a lock the user can open when its content is
+  at most `locking.RECOMPRESS_LIMIT` (1 GB; py7zr compresses at about 2 MB/s,
+  the dialog gives the estimate), a fixed lock above that (a rewrite would
+  recompress everything, hours on a big archive);
 - an encrypted 7z made with Store: a lock the user can open on purpose. A dialog
   explains what saving will do (new version next to the original, same
   password and encrypted names, free space needed); after that `_edit_unlocked`
@@ -319,6 +385,22 @@ tooltip that explains why:
 kind of 7z it is comes from `SevenZipBackend.edit_profile()` (Store or
 compressed, encrypted names, solid), probed once on the worker thread that
 opens the archive.
+
+## Saving a zip (`core/backends/zip_backend.py`)
+
+`ZipBackend.save()` writes a new archive next to the original (`.zxtmp`),
+checks it and swaps it in with `os.replace`, on the save worker with progress
+and cancel (`save_plan()` makes the window use it). Entries that did not
+change are copied raw by `_copy_raw`: local header (with the new name for a
+rename), data and data descriptor, byte for byte, then appended to the
+writer's central directory as a copied ZipInfo. So they stay compressed and,
+in an encrypted zip, encrypted with their own method; a save costs a copy and
+never needs the password for them. Renames are a name map (`_moved`), so a
+renamed file is never read. New and changed files are written with pyzipper:
+Deflate, and with the session password AES-256 (folder entries are left
+unencrypted). The check reads the new central directory, opens every copied
+entry (which verifies its local header, and with AES the password check
+value) and reads back every written one.
 
 ## Saving a 7z (`core/backends/sevenzip_writer.py`)
 
@@ -380,6 +462,17 @@ ruff format --check .   # formatting
 boots the window offscreen and checks a live accent change - it is the safety net
 for UI-layer refactors, so run it after any change under `ui/`.
 
+CI (`.gitlab-ci.yml`) runs lint and the tests on every pipeline, on the
+locked versions in `requirements/lock.txt` (made with `uv pip compile` from
+`pyproject.toml` and `requirements/build.in`; `tests/test_lock.py` keeps them
+in step). On a version
+tag it builds the three installers (Linux on GitLab's shared runners, Windows
+and macOS on our own group runners with the shell executor) and creates
+the GitLab Release with the changelog section and the downloads; see
+`packaging/README.md`. The README screenshots are made by
+`scripts/readme_screenshots/take_screenshots.py` from a generated demo
+archive (no real photos or documents).
+
 ## The MainWindow package (how the window is organised)
 
 `MainWindow` is deliberately small: `main_window/__init__.py` holds only the
@@ -395,7 +488,10 @@ inherits from. This keeps each area easy to find and read without a
 - `preview.py` (`PreviewMixin`) - the preview pane: media chrome, loading
   states, displaying each file kind, and the full-screen slideshow (a timer
   that steps to the next photo, wrapping; Space in `FullscreenWindow` toggles
-  it).
+  it). A small text file in a writable, unlocked archive opens in an editor
+  (`_text_editable`, `_show_editable_text`): a zip reads it on the UI thread
+  (`fast_seek`), a 7z through the preview loader, whole instead of the first
+  part; `editing._stage_editor` stages the edit when the file is left.
 - `actions.py` (`ActionsMixin`) - the `QAction`s and keyboard shortcuts.
 - `opening.py` (`OpeningMixin`) - opening/closing archives and the password flow.
   The index is read by `ui/open_worker.py` on a worker thread while
@@ -411,10 +507,13 @@ inherits from. This keeps each area easy to find and read without a
 - `search.py` (`SearchMixin`) - in-folder and whole-archive search.
 - `editing.py` (`EditingMixin`) - add / delete / rename and drag-drop.
 - `locking.py` (`LockMixin`) - the edit lock (tooltip, unlock dialog) and saving
-  (a 7z in the background with progress, a zip directly).
+  (on `ui/save_worker.py` with progress and cancel when the backend has a
+  `save_plan()`, as zip and 7z do).
 - `extract.py` (`ExtractMixin`) - extraction and prefetch progress.
 - `apply_settings.py` (`SettingsMixin`) - opening the settings screen and
   applying changes live.
+- `updates.py` (`UpdatesMixin`) - the new-version notice (see
+  `services/updates.py`).
 - `window_frame.py` (`WindowFrameMixin`) - frameless-window chrome: resize grips,
   responsive layout, and the `resizeEvent` / `closeEvent` overrides.
 - `chrome.py` and `constants.py` - the frameless-window helper widgets

@@ -10,6 +10,97 @@ next release.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-12
+
+### Added
+
+- **New version notice.** If you allow it (Archy asks once), Archy checks at
+  start-up whether a newer version is out and offers *Go to download*,
+  *Later* or *Skip this version*. Only Archy's version number and your
+  operating system are sent. On or off, and *Check now*, under *Settings >
+  General > Updates*.
+- **Edit encrypted zip archives.** An encrypted zip can now be unlocked (click
+  the lock) to add, rename and delete files. Files you did not change are
+  copied as they are, still encrypted with their own method; new and changed
+  files are encrypted with AES-256 and the same password.
+- **Previews of Word, Excel and PowerPoint files.** A .docx shows as a page
+  with its headings, lists, tables and pictures, a .pptx as one card per slide,
+  and a .xlsx as a table per sheet with the values Excel last calculated. Their
+  thumbnails show the picture Office saved with the file, or a small page of
+  their text. Macros are never run.
+- **Show the selection.** A round button at the far left above the list
+  scrolls the selected file back into view after you scrolled away in a long
+  folder.
+- **Sort by a timestamp in the name.** Files whose name starts with a Unix
+  time (such as `1696512000--beach.jpg`, `1696512000-beach.jpg` or
+  `1696512000123_IMG_0042.jpg`) can be sorted on that time, oldest or newest
+  first; files without one follow, sorted by name. Choose *Timestamp in name*
+  in the sort menu. In a folder with such names the list view shows the time
+  as a date in its own column, and pointing at a name shows it too.
+- **Thumbnails of documents.** In the thumbnail views, PDFs show the top of
+  their first page, web pages and Markdown files a small rendered page, and
+  text and code files their first lines. Files Archy cannot preview keep a
+  dimmed icon, so you see at a glance what opens in the preview.
+- **Starting screen.** Archy shows a small card with its logo while it starts,
+  so a slow (cold) start no longer looks like nothing is happening.
+
+### Changed
+
+- The Mac download says it needs macOS 14 (Sonoma) or newer, which it already
+  did, instead of failing to start on an older macOS.
+- An encrypted 7z that is compressed can now be unlocked for editing too when
+  it holds up to 1 GB; saving compresses it again, which the unlock dialog
+  says takes about how long (a few minutes for 1 GB). Larger ones stay locked.
+- Saving a zip is much faster: files that did not change are copied as they
+  are instead of being unpacked and packed again, a renamed file is no longer
+  read into memory, and a large save shows its progress and can be cancelled.
+  The new version is checked before it replaces the original.
+- Going back up a folder (with the path, Back or Up) keeps your place: the
+  folder you came out of is selected and scrolled into view, instead of the
+  list starting at the top again. Coming back into a folder puts the cursor
+  on the file you were at.
+- **Faster folders in large solid 7z archives**, without repacking them.
+  Archy now unpacks compressed solid blocks itself: in an archive made by
+  7-Zip with several threads it starts at the nearest point before a folder
+  instead of at the start of the block (about ten times faster in our tests),
+  it continues where it stopped when you move on to the next folder, and it
+  no longer checks data it only unpacks to get past it.
+- The tiles in the thumbnail views grow with the width of the list until
+  another column fits, instead of leaving an empty band at the right.
+- Archy starts faster: the video library for thumbnails is only loaded when
+  the first video thumbnail is made.
+- Web pages (HTML) and data files such as JSON, XML and YAML count as
+  documents in the sidebar.
+- A warning about a damaged image (such as "Corrupt JPEG data: premature end
+  of data segment", shown when Archy runs from a terminal) now names the file
+  and its folder in the archive, so you can find the photo.
+
+### Fixed
+
+- Videos get a thumbnail in every download. The video library was optional
+  and could be left out of a build (the Linux download had no video
+  thumbnails); it is now part of Archy, and every build checks that it works.
+- Text files in a 7z can now be edited in the preview, as in a zip. Before,
+  they stayed read-only even after the archive was unlocked.
+- On macOS the window briefly shrank and grew back the first time a web page
+  (HTML) was shown in the preview; it now stays put.
+- A photo that was already unpacked kept showing the loading bar in the
+  preview until a photo selected before it, still being unpacked, was done;
+  it now shows at once. Photos you only pass while browsing quickly are no
+  longer unpacked one after another in the background.
+- Opening a folder in a very large solid 7z could look frozen: the bar under
+  the file list stayed at "0 / N" until the first file was unpacked, which can
+  take minutes, or stopped at a file such as "7 / 90" for as long. It now
+  follows the data unpacked so far (a percentage, the amounts when you point
+  at it), or moves as a busy bar with the time it has been busy.
+- Large photos looked noisy (grainy, with stripes in fine patterns) in the
+  preview until you zoomed in; they are now scaled down smoothly at every
+  zoom level, in full screen and the slideshow too.
+- Files of the "other" kind (such as web pages) had a camera badge in the
+  thumbnail views, as if they were photos.
+- The macOS app icon was a little larger than the icons of other apps in the
+  Dock; it now follows Apple's icon grid.
+
 ## [0.2.1] - 2026-10-06
 
 The first release with installers for macOS and Windows next to the Linux
@@ -239,7 +330,8 @@ The first public version: the state of Archy when the repository was created.
 - Opens archives from the command line, "Open with" (Windows, Linux) and the
   Dock (macOS).
 
-[Unreleased]: https://gitlab.com/bytefulminds/archy/-/compare/v0.2.1...main
+[Unreleased]: https://gitlab.com/bytefulminds/archy/-/compare/v0.3.0...main
+[0.3.0]: https://gitlab.com/bytefulminds/archy/-/compare/v0.2.1...v0.3.0
 [0.2.1]: https://gitlab.com/bytefulminds/archy/-/compare/v0.2.0...v0.2.1
 [0.2.0]: https://gitlab.com/bytefulminds/archy/-/compare/v0.1.0...v0.2.0
 [0.1.0]: https://gitlab.com/bytefulminds/archy/-/compare/v0.0.1...v0.1.0

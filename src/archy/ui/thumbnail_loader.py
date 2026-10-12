@@ -21,7 +21,8 @@ from PySide6.QtGui import QImage, QPixmap, QTransform
 from archy.core import memory
 from archy.core.backend import ArchiveBackend, ArchiveEntry
 from archy.core.secure_temp import disk_reserve
-from archy.services.image_decode import decode_image
+from archy.services import doc_thumbs
+from archy.services.image_decode import decode_image, describing
 from archy.services.preview import PreviewKind, kind_for_name
 
 # Thumbnail generation for the grid views. Images are decoded straight to
@@ -67,11 +68,14 @@ _PRIO_PRELOAD = 0
 
 
 def _pyav_available() -> bool:
+    """Whether PyAV is installed, without importing it: that takes seconds on a
+    cold start and is only needed for the first video thumbnail."""
+    import importlib.util
+
     try:
-        import av  # noqa: F401
-    except Exception:  # noqa: BLE001 - optional dependency
+        return importlib.util.find_spec("av") is not None
+    except (ImportError, ValueError):
         return False
-    return True
 
 
 # A whole-video read from a solid archive briefly holds the bytes about three
@@ -93,6 +97,22 @@ def _decode_image_thumb(data: bytes, name: str = "") -> QImage:
     services/image_decode.py: scaled JPEG decoding, GIL released, HEIC, the
     embedded preview of a camera RAW, a PSD's composite)."""
     return decode_image(data, QSize(_THUMB_SIZE, _THUMB_SIZE), name)
+
+
+# Made from the file's bytes (the folder pass can hand these over).
+_FROM_BYTES = (PreviewKind.IMAGE, PreviewKind.TEXT, PreviewKind.PDF, PreviewKind.OFFICE)
+
+
+def _thumb_from_bytes(data: bytes, name: str, kind: PreviewKind) -> QImage:
+    """An image, the first lines of a text file or the first page of a PDF
+    (services/doc_thumbs.py)."""
+    if kind is PreviewKind.TEXT:
+        return doc_thumbs.text_thumbnail(data, name)
+    if kind is PreviewKind.PDF:
+        return doc_thumbs.pdf_thumbnail(data)
+    if kind is PreviewKind.OFFICE:
+        return doc_thumbs.office_thumbnail(data, name)
+    return _decode_image_thumb(data, name)
 
 
 def _decode_video_frame(data: object) -> QImage | None:
@@ -278,13 +298,13 @@ class ThumbnailLoader(QObject):
 
     # ------------------------------------------------------- folder pass
     def wanted_paths(self, entries: list[ArchiveEntry]) -> set[str]:
-        """Images in ``entries`` that still need a thumbnail - what the folder
-        pass should hand to submit_decoded(). GUI thread."""
+        """Images and documents in ``entries`` that still need a thumbnail -
+        what the folder pass should hand to submit_decoded(). GUI thread."""
         return {
             e.path
             for e in entries
             if e.path not in self._cache
-            and kind_for_name(e.name) is PreviewKind.IMAGE
+            and kind_for_name(e.name) in _FROM_BYTES
             and self._is_thumbnailable(e)
         }
 
@@ -408,6 +428,10 @@ class ThumbnailLoader(QObject):
             # block reports the whole block as its compressed size, which used
             # to rule out the first image of every such folder.
             return int(entry.size or 0) <= _MAX_SOURCE_BYTES
+        if kind is PreviewKind.TEXT:
+            return True  # only the first part is read (doc_thumbs.TEXT_BYTES)
+        if kind in (PreviewKind.PDF, PreviewKind.OFFICE):
+            return int(entry.size or 0) <= doc_thumbs.MAX_PDF_BYTES
         if kind is PreviewKind.VIDEO and self._av and self._backend is not None:
             # A video frame needs PyAV. On a seek-friendly backend (zip) a prefix
             # read is cheap; if the clip is already in the folder buffer it is
@@ -479,13 +503,16 @@ class _ThumbTask(QRunnable):
                 return  # folder changed while queued; skip the (possibly slow) work
             image = QImage()
             try:
-                if self._data is not None:
-                    image = _decode_image_thumb(self._data, self._entry.name)
-                elif kind_for_name(self._entry.name) is PreviewKind.VIDEO:
-                    image = self._video_thumbnail() or QImage()
-                elif self._backend is not None:
-                    data = self._backend.read_bytes(self._entry, cache=False)
-                    image = _decode_image_thumb(data, self._entry.name)
+                with describing(self._entry.path):  # a Qt warning then names the file
+                    kind = kind_for_name(self._entry.name)
+                    if self._data is not None:
+                        image = _thumb_from_bytes(self._data, self._entry.name, kind)
+                    elif kind is PreviewKind.VIDEO:
+                        image = self._video_thumbnail() or QImage()
+                    elif self._backend is not None:
+                        limit = doc_thumbs.TEXT_BYTES if kind is PreviewKind.TEXT else None
+                        data = self._backend.read_bytes(self._entry, cache=False, max_bytes=limit)
+                        image = _thumb_from_bytes(data, self._entry.name, kind)
             except Exception:  # noqa: BLE001 - a bad file just gets no thumbnail
                 image = QImage()
             self._data = None  # let the (possibly large) bytes go before signalling

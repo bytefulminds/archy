@@ -23,7 +23,7 @@ import os
 import sys
 from pathlib import Path
 
-from PyInstaller.utils.hooks import collect_dynamic_libs, collect_submodules
+from PyInstaller.utils.hooks import collect_data_files, collect_dynamic_libs, collect_submodules
 
 # SPECPATH is the directory holding this .spec file (packaging/); the repo root
 # is its parent.
@@ -61,7 +61,12 @@ _REQUIRED = (
     "psutil",
     "PIL",
     "pi_heif",
+    "av",
+    "certifi",
     "libarchive",
+    "mammoth",
+    "openpyxl",
+    "pptx",
 )
 _missing = [name for name in _REQUIRED if importlib.util.find_spec(name) is None]
 if _missing:
@@ -129,7 +134,20 @@ hiddenimports += ["pi_heif", "PIL.Image", "PIL.ImageOps"]
 # naming it lets PyInstaller's PySide6 hooks bundle QtWebEngineProcess and its
 # resources.
 hiddenimports += ["PySide6.QtWebEngineCore", "PySide6.QtWebEngineWidgets"]
+# macOS: a hidden QQuickWidget keeps the window from being rebuilt on the first
+# web page (ui/main_window); imported inside a function, so name it here.
+hiddenimports += ["PySide6.QtQuickWidgets"]
 binaries += collect_dynamic_libs("pi_heif")
+# PyAV makes the video thumbnails (ui/thumbnail_loader, imported on the first
+# video); its own FFmpeg libraries come with it through PyInstaller's av hook.
+hiddenimports += ["av"]
+# The update check (services/updates.py) verifies GitLab's certificate with
+# certifi's bundle; PyInstaller's certifi hook brings its cacert.pem along.
+hiddenimports += ["certifi"]
+# Office previews (services/office.py) are imported when the first document is
+# shown. python-pptx reads its XML templates from files next to its code.
+hiddenimports += ["mammoth", "openpyxl", "pptx", "lxml.etree", "lxml._elementpath"]
+datas += collect_data_files("pptx")
 
 a = Analysis(
     [ENTRY],
@@ -193,7 +211,7 @@ if sys.platform == "darwin":
             "CFBundleShortVersionString": APP_VERSION,
             "CFBundleVersion": APP_VERSION,
             "NSHighResolutionCapable": True,
-            "LSMinimumSystemVersion": "11.0",
+            "LSMinimumSystemVersion": "14.0",  # PyAV's arm64 wheels need macOS 14
             # The languages Archy ships (resources/i18n), so macOS treats the app
             # as localized and native panels (file dialogs) follow the user's
             # language too.

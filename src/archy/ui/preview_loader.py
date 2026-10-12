@@ -38,8 +38,13 @@ class PreviewLoader(QObject):
         backend: ArchiveBackend,
         entry: ArchiveEntry,
         max_bytes: int | None,
+        is_stale: Callable[[], bool] | None = None,
     ) -> None:
-        self._pool.start(_ReadTask(self, request_id, backend, entry, max_bytes))
+        """Read in the background. A request that went stale while it waited
+        its turn (another file was selected) is skipped: browsing quickly
+        past files that still need unpacking must not queue up a read for
+        each of them."""
+        self._pool.start(_ReadTask(self, request_id, backend, entry, max_bytes, is_stale))
 
     def submit_spill(
         self,
@@ -62,6 +67,7 @@ class _ReadTask(QRunnable):
         backend: ArchiveBackend,
         entry: ArchiveEntry,
         max_bytes: int | None,
+        is_stale: Callable[[], bool] | None = None,
     ) -> None:
         super().__init__()
         self._loader = loader
@@ -69,8 +75,11 @@ class _ReadTask(QRunnable):
         self._backend = backend
         self._entry = entry
         self._max_bytes = max_bytes
+        self._is_stale = is_stale
 
     def run(self) -> None:
+        if self._is_stale is not None and self._is_stale():
+            return  # nobody waits for it any more
         try:
             data = self._backend.read_bytes(self._entry, max_bytes=self._max_bytes)
         except EncryptedArchiveError:

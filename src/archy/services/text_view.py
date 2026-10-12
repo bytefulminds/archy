@@ -517,10 +517,47 @@ class CsvModel(QAbstractTableModel):
         return None
 
 
-def _make_table() -> QTableView:
+class SheetModel(QAbstractTableModel):
+    """Rows of cell texts with spreadsheet headers (A, B, C... and 1, 2, 3...),
+    for a sheet of an Excel file."""
+
+    def __init__(self, rows: list[list[str]], columns: int, column_name) -> None:  # noqa: ANN001
+        super().__init__()
+        self._rows = rows
+        self._columns = columns
+        self._column_name = column_name
+
+    def rowCount(self, parent=QModelIndex()) -> int:  # noqa: ANN001, B008, N802
+        return 0 if parent.isValid() else len(self._rows)
+
+    def columnCount(self, parent=QModelIndex()) -> int:  # noqa: ANN001, B008, N802
+        return 0 if parent.isValid() else self._columns
+
+    def data(self, index, role=Qt.ItemDataRole.DisplayRole):  # noqa: ANN001, ANN201
+        if not index.isValid():
+            return None
+        if role in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.ToolTipRole):
+            row = self._rows[index.row()]
+            return row[index.column()] if index.column() < len(row) else ""
+        return None
+
+    def headerData(self, section, orientation, role=Qt.ItemDataRole.DisplayRole):  # noqa: ANN001, ANN201, N802
+        if role != Qt.ItemDataRole.DisplayRole:
+            return None
+        if orientation == Qt.Orientation.Horizontal:
+            return self._column_name(section)
+        return str(section + 1)
+
+
+def make_table(*, monospace: bool = True) -> QTableView:
+    return _make_table(monospace=monospace)
+
+
+def _make_table(*, monospace: bool = True) -> QTableView:
     table = QTableView()
     table.setObjectName("csvTable")
-    table.setFont(_monospace())
+    if monospace:
+        table.setFont(_monospace())
     table.setWordWrap(False)
     table.setAlternatingRowColors(True)
     table.setSelectionMode(QTableView.SelectionMode.ExtendedSelection)

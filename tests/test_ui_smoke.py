@@ -223,6 +223,20 @@ def test_app_icon_resolves_for_every_platform(monkeypatch) -> None:
     assert app_module._app_icon_path().name == "archy_macos.png"
 
 
+def _write_tiny_video(av, out_file) -> None:  # noqa: ANN001
+    """A 1-second 64x48 MPEG-4 video, frames from grey to lighter (no numpy)."""
+    with av.open(out_file, "w", format="mp4") as out:
+        stream = out.add_stream("mpeg4", rate=25)
+        stream.width, stream.height, stream.pix_fmt = 64, 48, "yuv420p"
+        for i in range(25):
+            frame = av.VideoFrame(64, 48, "rgb24")
+            frame.planes[0].update(bytes([i * 8]) * (64 * 48 * 3))
+            for packet in stream.encode(frame.reformat(format="yuv420p")):
+                out.mux(packet)
+        for packet in stream.encode():
+            out.mux(packet)
+
+
 def test_disk_mode_keeps_folder_and_video_encrypted(tmp_path, monkeypatch) -> None:
     # "Always use temporary files": the folder pass keeps its files in the
     # encrypted store (not RAM), thumbnails still all appear, a video plays
@@ -233,7 +247,6 @@ def test_disk_mode_keeps_folder_and_video_encrypted(tmp_path, monkeypatch) -> No
 
     py7zr = pytest.importorskip("py7zr")
     av = pytest.importorskip("av")
-    import numpy as np
     from PySide6.QtCore import QBuffer, QByteArray
     from PySide6.QtGui import QColor, QImage
 
@@ -242,17 +255,7 @@ def test_disk_mode_keeps_folder_and_video_encrypted(tmp_path, monkeypatch) -> No
 
     # A tiny real video (PyAV) plus a few images, solid 7z.
     video = io.BytesIO()
-    with av.open(video, "w", format="mp4") as out:
-        stream = out.add_stream("mpeg4", rate=25)
-        stream.width, stream.height, stream.pix_fmt = 64, 48, "yuv420p"
-        for i in range(25):
-            frame = av.VideoFrame.from_ndarray(
-                np.full((48, 64, 3), i * 8, np.uint8), format="rgb24"
-            )
-            for packet in stream.encode(frame):
-                out.mux(packet)
-        for packet in stream.encode():
-            out.mux(packet)
+    _write_tiny_video(av, video)
     marker = b"ARCHY-PLAINTEXT-MARKER"
     archive = tmp_path / "shoot.7z"
     with py7zr.SevenZipFile(str(archive), "w") as z:
@@ -480,12 +483,33 @@ def test_lock_shows_why_and_store_7z_can_be_unlocked_and_saved(tmp_path, monkeyp
     window.resize(1200, 800)
     window.show()
 
-    # Compressed + encrypted: locked for good, and the tooltip says why.
-    _open(window, _encrypted_backup(tmp_path / "packed.7z", store=False))
+    # Compressed + encrypted and large: locked for good, and the tooltip says why.
+    packed = _encrypted_backup(tmp_path / "packed.7z", store=False)
+    monkeypatch.setattr(locking, "RECOMPRESS_LIMIT", 100)  # "large" for this test
+    _open(window, packed)
     assert window._lock_button.isVisible()
     assert window._lock_button.property("lockState") == locking.FIXED
     assert "compressed" in window._lock_button.toolTip()
     assert not window._can_edit()
+    monkeypatch.undo()
+    monkeypatch.setattr(opening.soft_dialog, "prompt_text", lambda *a, **k: "geheim")
+    monkeypatch.setattr(locking.soft_dialog.SoftDialog, "exec", fake_exec)
+
+    # Compressed + encrypted and small: compressing it again takes seconds, so
+    # it can be unlocked, edited and saved, staying compressed and encrypted.
+    _open(window, packed)
+    assert window._lock_button.property("lockState") == locking.LOCKED
+    assert "compresses everything again" in window._lock_button.toolTip()
+    window._lock_button.click()
+    assert any("compresses everything again" in text for text in asked)
+    assert window._can_edit()
+    window._backend.write_bytes("extra.txt", b"toegevoegd")
+    window.save_archive(blocking=True)
+    app.processEvents()
+    assert not window._backend.has_unsaved_changes
+    profile = window._backend.edit_profile()
+    assert profile.encrypted and profile.header_encrypted and not profile.store_only
+    assert "extra.txt" in {e.path for e in window._backend.list_entries()}
 
     # Store + encrypted: locked, explained, and unlockable on purpose.
     archive = _encrypted_backup(tmp_path / "store.7z")
@@ -577,24 +601,13 @@ def test_video_in_a_stored_7z_plays_straight_from_the_archive(tmp_path) -> None:
 
     py7zr = pytest.importorskip("py7zr")
     av = pytest.importorskip("av")
-    import numpy as np
 
     from archy.services.encrypted_device import ReaderDevice
     from archy.ui import theme
     from archy.ui.main_window import MainWindow
 
     video = io.BytesIO()
-    with av.open(video, "w", format="mp4") as out:
-        stream = out.add_stream("mpeg4", rate=25)
-        stream.width, stream.height, stream.pix_fmt = 64, 48, "yuv420p"
-        for i in range(25):
-            frame = av.VideoFrame.from_ndarray(
-                np.full((48, 64, 3), i * 8, np.uint8), format="rgb24"
-            )
-            for packet in stream.encode(frame):
-                out.mux(packet)
-        for packet in stream.encode():
-            out.mux(packet)
+    _write_tiny_video(av, video)
     archive = tmp_path / "stored.7z"
     filters = [{"id": py7zr.FILTER_COPY}, {"id": py7zr.FILTER_CRYPTO_AES256_SHA256}]
     with py7zr.SevenZipFile(
@@ -771,6 +784,85 @@ def test_pdf_preview_knows_its_pages_title_and_author() -> None:
     assert details["details.pages"] == "2 pages"
     assert details["details.title"] == "Reisverslag"
     widget._zx_cleanup()
+
+
+def test_sorting_by_the_timestamp_in_the_name(tmp_path) -> None:  # noqa: ANN001
+    import time
+    import zipfile
+
+    from PySide6.QtCore import QCoreApplication, Qt
+
+    from archy.ui import theme
+    from archy.ui.main_window import MainWindow
+
+    archive = tmp_path / "stamps.zip"
+    with zipfile.ZipFile(archive, "w") as z:
+        z.writestr("sub/inside.txt", b"x")
+        z.writestr("1696512000--b.jpg", b"x")  # Oct 2023
+        z.writestr("999999999_a.jpg", b"x")  # Sep 2001: shorter, sorts last by name
+        z.writestr("1700000000123_c.jpg", b"x")  # Nov 2023, in milliseconds
+        z.writestr("zeta.txt", b"x")
+        z.writestr("Alpha.txt", b"x")
+
+    app = _app()
+    theme.apply(app)
+    org, name = QCoreApplication.organizationName(), QCoreApplication.applicationName()
+    QCoreApplication.setOrganizationName("ArchyTest")
+    QCoreApplication.setApplicationName("ArchyTestStamps")
+    try:
+        from archy.ui.settings import Settings
+
+        Settings()._q.clear()
+        window = MainWindow()
+        window.show()
+        _open(window, archive)
+
+        def names() -> list[str]:
+            proxy = window._proxy
+            return [window._node_at(proxy.index(r, 0)).name for r in range(proxy.rowCount())]
+
+        window._sort_by(6, False)
+        # Folders first; then names with a time, oldest first; then the rest by name.
+        assert names() == [
+            "sub",
+            "999999999_a.jpg",
+            "1696512000--b.jpg",
+            "1700000000123_c.jpg",
+            "Alpha.txt",
+            "zeta.txt",
+        ]
+        assert window._sort_column_actions[6].isChecked()
+        # The folder has such names: the column shows them as dates, and the
+        # name's tooltip says it too (also in the thumbnail views).
+        assert not window._table.isColumnHidden(6)
+        proxy = window._proxy
+        row = names().index("1696512000--b.jpg")
+        date = proxy.index(row, 6).data()
+        assert date and "2023" in date
+        tip = proxy.index(row, 0).data(Qt.ItemDataRole.ToolTipRole)
+        assert "1696512000--b.jpg" in tip and date in tip
+        assert proxy.index(names().index("zeta.txt"), 0).data(Qt.ItemDataRole.ToolTipRole) is None
+        window._enter_folder(window._nav[0].children["sub"])
+        assert window._table.isColumnHidden(6)  # nothing to show there
+        window.go_up()
+        window._sort_by(None, True)  # newest first, the others still below
+        assert names() == [
+            "sub",
+            "1700000000123_c.jpg",
+            "1696512000--b.jpg",
+            "999999999_a.jpg",
+            "zeta.txt",
+            "Alpha.txt",
+        ]
+        again = MainWindow()  # remembered
+        assert again._settings.sort_column == 6
+        again.close()
+        window.close()
+        time.sleep(0.01)
+        Settings()._q.clear()
+    finally:
+        QCoreApplication.setOrganizationName(org)
+        QCoreApplication.setApplicationName(name)
 
 
 def test_sorting_applies_to_every_view_keeps_folders_first_and_is_remembered(tmp_path) -> None:  # noqa: ANN001
@@ -1218,3 +1310,443 @@ def test_slideshow_hides_the_cursor_when_the_mouse_rests() -> None:
     window._hide_bar()
     window.close()  # leaving the slideshow always brings the cursor back
     assert not window.cursor_hidden and QGuiApplication.overrideCursor() is before
+
+
+def test_thumbnail_tiles_grow_to_fill_the_row(tmp_path) -> None:  # noqa: ANN001
+    import time
+    import zipfile
+
+    from archy.ui import theme
+    from archy.ui.grid_delegate import MAX_GROW
+    from archy.ui.main_window import MainWindow
+
+    archive = tmp_path / "photos.zip"
+    with zipfile.ZipFile(archive, "w") as z:
+        for i in range(30):
+            z.writestr(f"{i:02}.png", _png("#336699"))
+    app = _app()
+    theme.apply(app)
+    window = MainWindow()
+    window.resize(1200, 800)
+    window.show()
+    _open(window, archive)
+    for view_index, view in ((2, window._grid), (3, window._large)):
+        window._switch_view(view_index)
+        base_w = view.itemDelegate()._base[0]
+        widths = set()
+        for width in (950, 1080, 1210, 1500):
+            window.resize(width, 800)
+            for _ in range(10):
+                app.processEvents()
+                time.sleep(0.005)
+            first = view.visualRect(window._proxy.index(0, 0))
+            row = [
+                view.visualRect(window._proxy.index(i, 0))
+                for i in range(30)
+                if view.visualRect(window._proxy.index(i, 0)).top() == first.top()
+            ]
+            gap = view.viewport().width() - row[-1].right()
+            # The row is filled: what is left is less than the spacing plus a
+            # scroll bar, never most of a tile (unless the tiles are as large
+            # as they may get, with one or two columns).
+            capped = first.width() == int(base_w * MAX_GROW)
+            assert gap < 30 or capped, (width, gap, first.width())
+            assert base_w <= first.width() <= base_w * MAX_GROW
+            widths.add(first.width())
+        assert len(widths) > 1  # the tiles follow the width
+    window.close()
+
+
+def test_splash_shows_while_starting_and_closes_with_the_window() -> None:
+    from PySide6.QtWidgets import QWidget
+
+    from archy.ui import splash as splash_module
+
+    app = _app()
+    splash = splash_module.show_splash(app)
+    assert splash.isVisible() and not splash.pixmap().isNull()
+    window = QWidget()
+    window.show()
+    splash.finish(window)
+    app.processEvents()
+    assert not splash.isVisible()
+    window.close()
+
+
+def test_documents_get_thumbnails_and_html_counts_as_a_document(tmp_path) -> None:  # noqa: ANN001
+    import time
+    import zipfile
+
+    from archy.core.tree import TreeNode
+    from archy.ui import theme
+    from archy.ui.archive_model import category_of, icon_of
+    from archy.ui.main_window import MainWindow
+
+    archive = tmp_path / "docs.zip"
+    with zipfile.ZipFile(archive, "w") as z:
+        z.writestr("index.html", "<html><body><h1>Welcome</h1></body></html>")
+        z.writestr("README.md", "# Archy\n\nLook inside archives.\n")
+        z.writestr("notes.txt", "Shopping list\n- bread\n")
+        z.writestr("report.docx", b"PK\x03\x04 not really")
+    page = TreeNode(name="index.html", path="index.html", is_dir=False)
+    assert category_of(page) == "document" and icon_of(page) == "doc"
+
+    app = _app()
+    theme.apply(app)
+    window = MainWindow()
+    window.resize(1000, 700)
+    window.show()
+    _open(window, archive)
+    window._switch_view(2)
+    deadline = time.monotonic() + 15
+    want = {"index.html", "README.md", "notes.txt"}
+    while not want <= set(window._thumbs._cache) and time.monotonic() < deadline:
+        app.processEvents()
+        time.sleep(0.01)
+    assert want <= set(window._thumbs._cache)
+    assert "report.docx" not in window._thumbs._cache  # no preview: stays an icon
+    window.close()
+
+
+def test_large_photo_is_drawn_smoothly_when_scaled_down() -> None:
+    # Fine black/white stripes far below screen resolution must average out
+    # to grey (mipmaps), not turn into black/white noise (aliasing).
+    from PySide6.QtGui import QColor, QImage, QPainter, QPen
+
+    from archy.ui.image_view import ImageView
+
+    app = _app()
+    image = QImage(4000, 3000, QImage.Format.Format_RGB32)
+    image.fill(QColor("white"))
+    painter = QPainter(image)
+    painter.setPen(QPen(QColor("black"), 2))
+    for x in range(0, 4000, 5):
+        painter.drawLine(x, 0, x, 3000)
+    painter.end()
+    view = ImageView()
+    view.resize(420, 320)
+    view.show()
+    view.set_image(image)
+    app.processEvents()
+    assert view.zoom_percent() < 15
+    shot = view.viewport().grab().toImage()
+    middle = [
+        QColor(shot.pixel(x, y)).lightness()
+        for x in range(shot.width() // 3, 2 * shot.width() // 3, 3)
+        for y in range(shot.height() // 3, 2 * shot.height() // 3, 3)
+    ]
+    assert max(middle) - min(middle) < 100, (min(middle), max(middle))  # noise: 0..255
+    view.close()
+
+
+def test_folder_loading_shows_it_is_busy_before_the_first_file() -> None:
+    from archy.ui import theme
+    from archy.ui.main_window import MainWindow
+
+    app = _app()
+    theme.apply(app)
+    window = MainWindow()
+    window.show()
+    window._on_prefetch_started(300)
+    bar = window._prefetch_bar
+    assert window._prefetch_label.isVisible()
+    assert (bar.minimum(), bar.maximum()) == (0, 0)  # a busy bar, moving on its own
+    window._on_prefetch_activity(-1, -1)  # still busy, nothing known
+    assert (bar.minimum(), bar.maximum()) == (0, 0)
+    window._prefetch_since -= 75  # busy for a while: the time is shown
+    window._on_prefetch_activity(-1, -1)
+    assert window._prefetch_label.text().endswith("1:15")
+    window._on_prefetch_activity(512 * 1024 * 1024, 2 * 1024 * 1024 * 1024)
+    assert (bar.maximum(), bar.value()) == (1000, 250)  # follows the bytes read
+    assert window._prefetch_label.text().endswith("25%")
+    assert "512" in window._prefetch_label.toolTip()  # the amounts on hover
+    # Through the signal, with a block far over 2 GB (a 32-bit int overflowed).
+    window._prefetcher.activity.emit(3 * 1024**3, 12 * 1024**3)
+    assert (bar.maximum(), bar.value()) == (1000, 250)
+    window._on_prefetch_done()
+    assert not window._prefetch_label.isVisible()
+    window.close()
+
+
+def test_going_back_up_keeps_your_place_in_a_long_folder(tmp_path) -> None:  # noqa: ANN001
+    import zipfile
+
+    from PySide6.QtWidgets import QApplication
+
+    from archy.ui import theme
+    from archy.ui.main_window import MainWindow
+
+    archive = tmp_path / "long.zip"
+    with zipfile.ZipFile(archive, "w") as z:
+        for i in range(80):
+            z.writestr(f"map{i:02d}/foto{i:02d}.jpg", b"x")
+            z.writestr(f"map{i:02d}/notes.txt", b"x")
+
+    app = _app()
+    theme.apply(app)
+    window = MainWindow()
+    window.resize(1000, 600)
+    window.show()
+    _open(window, archive)
+
+    def current() -> str | None:
+        index = window._selection.currentIndex()
+        node = window._node_at(index) if index.isValid() else None
+        return node.name if node is not None else None
+
+    def visible(view) -> bool:  # noqa: ANN001
+        rect = view.visualRect(window._selection.currentIndex())
+        return view.viewport().rect().intersects(rect)
+
+    for view_index in (0, 2):  # the list, and the thumbnails
+        window._switch_view(view_index)
+        view = window._current_view()
+        root = window._nav[0]
+        window._enter_folder(root.children["map65"])
+        window._go_to_depth(0)  # the path bar, back to the top level
+        for _ in range(3):
+            app.processEvents()
+        assert current() == "map65"  # the folder you came out of, selected
+        assert window._selection.isSelected(window._selection.currentIndex())
+        assert view.verticalScrollBar().value() > 0 and visible(view)  # not at the top
+
+        # Up with the keyboard/button and Back go to the same place.
+        window._enter_folder(root.children["map70"])
+        window.go_up()
+        app.processEvents()
+        assert current() == "map70"
+
+    # A file you were at in a folder: the cursor goes back there, without
+    # selecting it (that would open its preview).
+    window._switch_view(0)
+    window._enter_folder(window._nav[0].children["map10"])
+    window._select_path("map10/notes.txt")
+    window.go_up()
+    window._enter_folder(window._nav[0].children["map10"])
+    QApplication.processEvents()
+    assert current() == "notes.txt"
+    assert not window._selection.selectedIndexes()
+    window.close()
+
+
+def _jpeg(color: tuple[int, int, int]) -> bytes:
+    import io
+
+    from PIL import Image
+
+    buffer = io.BytesIO()
+    Image.new("RGB", (64, 48), color).save(buffer, "JPEG")
+    return buffer.getvalue()
+
+
+def test_a_photo_in_memory_shows_without_waiting_for_another_read(tmp_path) -> None:  # noqa: ANN001
+    # A photo still being read (here: a read that never ends) must not hold up
+    # the preview of one that is in memory already.
+    import zipfile
+
+    from PySide6.QtWidgets import QApplication
+
+    from archy.ui import theme
+    from archy.ui.main_window import MainWindow
+
+    archive = tmp_path / "photos.zip"
+    with zipfile.ZipFile(archive, "w") as z:
+        z.writestr("a_slow.jpg", _jpeg((200, 20, 20)))
+        z.writestr("b_ready.jpg", _jpeg((20, 200, 20)))
+    app = _app()
+    theme.apply(app)
+    window = MainWindow()
+    window.show()
+    _open(window, archive)
+    submitted: list[str] = []
+    window._loader.submit = lambda _rid, _b, entry, *_a, **_k: submitted.append(entry.path)
+    ready = window._nav[0].children["b_ready.jpg"]
+    window._backend.read_bytes(ready.entry)  # in memory now (the read cache)
+
+    window._select_path("a_slow.jpg")
+    QApplication.processEvents()
+    assert submitted == ["a_slow.jpg"]
+    assert window._current_image_view() is None  # still loading
+    window._select_path("b_ready.jpg")
+    QApplication.processEvents()
+    assert submitted == ["a_slow.jpg"]  # not queued behind it
+    assert window._current_image_view() is not None  # shown at once
+    window.close()
+
+
+def test_a_stale_preview_read_is_skipped() -> None:
+    from archy.ui.preview_loader import PreviewLoader, _ReadTask
+
+    class Backend:
+        reads = 0
+
+        def read_bytes(self, entry, max_bytes=None):  # noqa: ANN001, ANN202
+            Backend.reads += 1
+            return b"x"
+
+    _app()
+    loader = PreviewLoader()
+    got: list[int] = []
+    loader.loaded.connect(lambda rid, _data: got.append(rid))
+    _ReadTask(loader, 1, Backend(), object(), None, lambda: True).run()
+    _ReadTask(loader, 2, Backend(), object(), None, lambda: False).run()
+    assert Backend.reads == 1 and got == [2]
+
+
+def test_locate_button_brings_the_selection_back_into_view(tmp_path) -> None:  # noqa: ANN001
+    import zipfile
+
+    from PySide6.QtWidgets import QApplication
+
+    from archy.ui import theme
+    from archy.ui.main_window import MainWindow
+
+    archive = tmp_path / "many.zip"
+    with zipfile.ZipFile(archive, "w") as z:
+        for i in range(150):
+            z.writestr(f"file{i:03d}.txt", b"x")
+    app = _app()
+    theme.apply(app)
+    window = MainWindow()
+    window.resize(1000, 600)
+    window.show()
+    _open(window, archive)
+    button = window._locate_button
+    assert not button.isEnabled()  # nothing selected yet
+    for view_index in (0, 3):
+        window._switch_view(view_index)
+        view = window._current_view()
+        window._select_path("file120.txt")
+        assert button.isEnabled()
+        view.verticalScrollBar().setValue(0)  # scrolled away to the top
+        QApplication.processEvents()
+        rect = view.visualRect(window._selection.currentIndex())
+        assert not view.viewport().rect().intersects(rect)
+        button.click()
+        QApplication.processEvents()
+        rect = view.visualRect(window._selection.currentIndex())
+        assert view.viewport().rect().intersects(rect)
+    window.close()
+
+
+def test_macos_window_is_ready_for_web_pages_from_the_start(monkeypatch) -> None:  # noqa: ANN001
+    # On macOS the first HTML preview rebuilt the whole window (it shrank and
+    # grew back) unless a Qt Quick widget was in it before it was shown.
+    import sys
+
+    from PySide6.QtWidgets import QWidget
+
+    from archy.services import web_view
+    from archy.ui.main_window import MainWindow
+
+    _app()
+    monkeypatch.setattr(web_view, "available", lambda: True)
+    monkeypatch.setattr(sys, "platform", "darwin")
+    window = MainWindow()
+    keeper = window.findChild(QWidget, "webSurfaceKeeper")
+    assert keeper is not None and keeper.isHidden()
+    monkeypatch.setattr(sys, "platform", "linux")
+    other = MainWindow()
+    assert other.findChild(QWidget, "webSurfaceKeeper") is None
+    window.close()
+    other.close()
+
+
+def test_an_encrypted_zip_can_be_unlocked_edited_and_saved(tmp_path, monkeypatch) -> None:  # noqa: ANN001
+    import pyzipper
+
+    from archy.ui import theme
+    from archy.ui.main_window import MainWindow, locking
+
+    archive = tmp_path / "secret.zip"
+    with pyzipper.AESZipFile(archive, "w", compression=pyzipper.ZIP_DEFLATED) as zf:
+        zf.setpassword(b"geheim")
+        zf.setencryption(pyzipper.WZ_AES, nbits=256)
+        zf.writestr("photos/a.jpg", b"jpeg bytes" * 100)
+        zf.writestr("notes.txt", b"hello")
+    app = _app()
+    theme.apply(app)
+    window = MainWindow()
+    window.show()
+    _open(window, archive)
+    state, _heading, text = window._lock_state()
+    assert state == locking.LOCKED and "AES-256" in text
+    assert not window._can_edit()
+
+    monkeypatch.setattr(window, "_prompt_password", lambda _message: "geheim")
+    asked: list[bool] = []
+    monkeypatch.setattr(
+        window, "_confirm_unlock", lambda *_a, **k: asked.append(k.get("zip_archive")) or True
+    )
+    window._unlock_for_editing()
+    assert asked == [True] and window._can_edit()
+    window._backend.write_bytes("notes/new.txt", b"added in Archy")
+    window._backend.rename("notes.txt", "renamed.txt")
+    window.save_archive(blocking=True)
+    app.processEvents()
+    assert not window._backend.has_unsaved_changes
+    with pyzipper.AESZipFile(archive) as zf:
+        zf.setpassword(b"geheim")
+        assert zf.read("notes/new.txt") == b"added in Archy"
+        assert zf.read("renamed.txt") == b"hello"
+        assert all(i.flag_bits & 0x1 for i in zf.infolist())
+    window.close()
+
+
+def test_text_in_an_unlocked_7z_can_be_edited_in_the_preview(tmp_path, monkeypatch) -> None:  # noqa: ANN001
+    import time
+
+    from archy.ui.main_window import MainWindow
+
+    app = _app()
+    archive = _encrypted_backup(tmp_path / "store.7z")
+    window = MainWindow()
+    window.resize(1100, 700)
+    window.show()
+    monkeypatch.setattr(window, "_prompt_password", lambda _message: "geheim")
+    monkeypatch.setattr(window, "_confirm_unlock", lambda *_a, **_k: True)
+    _open(window, archive)
+
+    def show(name: str) -> None:
+        window._req_id += 1
+        window._preview_node(window._nav[-1].children[name], window._req_id)
+        deadline = time.monotonic() + 20
+        while window._editor is None and time.monotonic() < deadline:
+            app.processEvents()
+            time.sleep(0.01)
+
+    window._unlock_for_editing()
+    assert window._can_edit()
+    show("notes.txt")  # a 7z is read in the background, then opens for editing
+    assert window._editor is not None and not window._editor.isReadOnly()
+    assert window._editor.toPlainText() == "hallo"
+    cursor = window._editor.textCursor()
+    cursor.movePosition(cursor.MoveOperation.End)
+    cursor.insertText(" wereld")  # as typing does (setPlainText resets "modified")
+    window._editor.setTextCursor(cursor)
+    assert window._save_action.isEnabled()
+    window._stage_editor()
+    assert window._backend.has_unsaved_changes
+    window.save_archive(blocking=True)
+    app.processEvents()
+    assert not window._backend.has_unsaved_changes
+    entry = next(e for e in window._backend.list_entries() if e.path == "notes.txt")
+    assert window._backend.read_bytes(entry) == b"hallo wereld"
+    window.close()
+
+
+def test_number_fields_in_the_settings_show_their_value() -> None:
+    # Qt 6.12 left the text field of a styled spin box without buttons 1 pixel
+    # wide, so the slideshow interval looked empty. The value must be visible.
+    from archy.ui import settings_dialog, theme
+
+    app = _app()
+    theme.apply(app)
+    for value, suffix in ((4, " s"), (75, " %"), (8, " GB")):
+        spin = settings_dialog._spin(1, 95, value, suffix)
+        spin.show()
+        app.processEvents()
+        field = spin.lineEdit()
+        needed = field.fontMetrics().horizontalAdvance(spin.text())
+        assert field.width() - 2 * settings_dialog.SPIN_TEXT_MARGIN >= needed, spin.text()
+        spin.close()

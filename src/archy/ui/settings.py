@@ -68,6 +68,10 @@ _DEFAULTS = {
     "res/threads": 0,
     "theme/accent": DEFAULT_ACCENT,
     "theme/accent2": DEFAULT_ACCENT2,
+    # Ask GitLab for a newer version at start-up: "ask" (not decided yet: the
+    # first start asks) | "on" | "off". The version the user chose to skip.
+    "updates/check": "ask",
+    "updates/skipped": "",
 }
 
 
@@ -109,6 +113,15 @@ class Settings:
 
     # ------------------------------------------------------------ typed
     @property
+    def update_check(self) -> str:
+        v = str(self._get("updates/check") or "ask")
+        return v if v in ("ask", "on", "off") else "ask"
+
+    @property
+    def skipped_version(self) -> str:
+        return str(self._get("updates/skipped") or "")
+
+    @property
     def start_view(self) -> int:
         v = self._get_int("view/start")
         return v if 0 <= v < len(VIEW_KEYS) else 3
@@ -116,7 +129,7 @@ class Settings:
     @property
     def sort_column(self) -> int:
         v = self._get_int("view/sort_column")
-        return v if 0 <= v <= 5 else 0
+        return v if 0 <= v <= 6 else 0  # 6: the timestamp in the name
 
     @property
     def sort_descending(self) -> bool:

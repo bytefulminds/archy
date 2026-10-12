@@ -4,8 +4,9 @@
 #   ./packaging/macos/build_dmg.sh            # -> dist/Archy-<version>-macos-<arch>.dmg
 #   ./packaging/macos/build_dmg.sh --publish  # ... and add it to the GitLab release
 #
-# Needs Python 3.11+ (python3) and Homebrew; installs libarchive with brew and
-# the project + PyInstaller into .venv when missing. --publish needs
+# Needs Python 3.12 (brew install python@3.12) and Homebrew; installs
+# libarchive with brew, and the locked versions from requirements/lock.txt into
+# .venv (made again when the lock changes). --publish needs
 # GITLAB_TOKEN (a personal access token with the api scope).
 set -euo pipefail
 cd "$(dirname "$0")/../.."
@@ -15,9 +16,21 @@ DMG="dist/Archy-${VERSION}-macos-$(uname -m).dmg"
 
 echo ">> Setup"
 brew list libarchive >/dev/null 2>&1 || brew install libarchive
-[ -x .venv/bin/python ] || python3 -m venv .venv
-.venv/bin/python -m pip install -q --upgrade pip
-.venv/bin/python -m pip install -q -e ".[dev]" pyinstaller
+# Every build gets exactly the versions in the lock, on Python 3.12 like the
+# other builds: the venv is made again whenever the lock changes.
+LOCK="$(shasum -a 256 requirements/lock.txt | cut -d' ' -f1)"
+if [ -x .venv/bin/python ] && [ "$(cat .venv/lock.sha256 2>/dev/null)" != "$LOCK" ]; then
+    rm -rf .venv
+fi
+if [ ! -x .venv/bin/python ]; then
+    PY312="$(command -v python3.12 || true)"
+    [ -n "$PY312" ] || { echo "Python 3.12 not found: brew install python@3.12" >&2; exit 1; }
+    "$PY312" -m venv .venv
+    .venv/bin/python -m pip install -q --upgrade pip
+    .venv/bin/python -m pip install -q --require-hashes -r requirements/lock.txt
+    echo "$LOCK" > .venv/lock.sha256
+fi
+.venv/bin/python -m pip install -q --no-deps --no-build-isolation -e .
 
 echo ">> Build"
 rm -rf build dist

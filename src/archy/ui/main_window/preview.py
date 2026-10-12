@@ -31,6 +31,7 @@ from archy.i18n import tr
 from archy.services import file_details
 from archy.services.encrypted_device import EncryptedBlobDevice, ReaderDevice
 from archy.services.formatting import format_modified, format_ratio, format_size
+from archy.services.image_decode import describing
 from archy.services.preview import PreviewKind, kind_for_name
 from archy.services.providers import (
     build_preview_widget,
@@ -702,9 +703,24 @@ class PreviewMixin:
         self._req_node = node
         self._req_kind = kind
         self._clear_editor()
-        self._show_loading(node.name)
         max_bytes = _TEXT_PREVIEW_BYTES if kind is PreviewKind.TEXT else None
-        self._loader.submit(request_id, self._backend, node.entry, max_bytes)
+        if kind is PreviewKind.TEXT and self._text_editable(node):
+            max_bytes = None  # whole, so it can be edited (a 7z: read in the background)
+        # Already in memory (the folder pass unpacked it, or it was read
+        # before): show it now. Through the loader it would wait behind a read
+        # still running for a file selected earlier.
+        data = self._backend.peek_bytes(node.entry, max_bytes=max_bytes)
+        if data is not None:
+            self._on_preview_loaded(request_id, data)
+            return
+        self._show_loading(node.name)
+        self._loader.submit(
+            request_id,
+            self._backend,
+            node.entry,
+            max_bytes,
+            lambda rid=request_id: rid != self._req_id,
+        )
 
     def _preview_streamed(self, node: TreeNode, kind: PreviewKind, request_id: int) -> bool:
         """Play a video (or open a PDF) straight from the archive when the
@@ -794,9 +810,9 @@ class PreviewMixin:
             self._show_placeholder(tr("preview.binary", name=node.name))
             return
 
-        decoded = decode_text(data, limit=None)
         if self._is_locked():
             # Reading it needed a password: keep it read-only (no save-back).
+            decoded = decode_text(data, limit=None)
             self._clear_editor()
             self._set_fullscreenable(False)
             self._set_nav_enabled(True)
@@ -806,6 +822,23 @@ class PreviewMixin:
             details_of(widget, file_details.text_details(decoded.text, decoded.encoding))
             self._set_preview_widget(widget)
             return
+        self._show_editable_text(node, data)
+
+    def _text_editable(self, node: TreeNode) -> bool:
+        """Whether a text file opens for editing: a writable, unlocked
+        archive and a file small enough to hold whole."""
+        backend = self._backend
+        return (
+            backend is not None
+            and backend.writable
+            and not self._is_locked()
+            and node.size <= _EDITOR_MAX
+        )
+
+    def _show_editable_text(self, node: TreeNode, data: bytes) -> None:
+        """The text in an editor; changes are staged when the file is left
+        and written on Save."""
+        decoded = decode_text(data, limit=None)
         widget, editor = make_text_preview(
             node.name, decoded.text, editable=True, resources=self._archive_resources(node)
         )
@@ -827,6 +860,10 @@ class PreviewMixin:
             if looks_binary(data):
                 self._show_placeholder(tr("preview.binary", name=node.name))
                 return
+            if self._text_editable(node) and len(data) == node.size:
+                self._show_editable_text(node, data)
+                self._temp.clear_preview()
+                return
             decoded = decode_text(data)
             text = decoded.text
             if node.size > len(data):
@@ -847,7 +884,8 @@ class PreviewMixin:
             full_bleed = self._req_kind in (PreviewKind.IMAGE, PreviewKind.PDF)
             self._set_fullscreenable(self._req_kind in _MEDIA_KINDS)
             self._set_nav_enabled(True)
-            widget = build_preview_widget(node.name, data)
+            with describing(node.path):  # a Qt warning then names the file
+                widget = build_preview_widget(node.name, data)
             self._set_preview_widget(widget, full_bleed=full_bleed)
             if self._req_kind is PreviewKind.IMAGE and not hasattr(widget, "_zx_image_view"):
                 self._slideshow_skip_failed(node)

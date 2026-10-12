@@ -13,7 +13,12 @@ class SettingsMixin:
 
     # ------------------------------------------------------------ settings
     def open_settings_dialog(self) -> None:
-        if open_settings(self, self._settings, on_prune=self._temp.prune):
+        if open_settings(
+            self,
+            self._settings,
+            on_prune=self._temp.prune,
+            on_check_updates=self.check_for_updates_now,
+        ):
             self._apply_settings()
 
     def _apply_settings(self) -> None:
@@ -52,6 +57,7 @@ class SettingsMixin:
         compact = self._settings.compact_density
         for view in (self._grid, self._large):
             view.itemDelegate().set_compact(compact)
+            view.fit_tiles()
             view.scheduleDelayedItemsLayout()
         row_h = 24 if compact else 28
         self._table.verticalHeader().setDefaultSectionSize(row_h)

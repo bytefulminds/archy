@@ -66,4 +66,5 @@ _NAV_KINDS = (
     PreviewKind.PDF,
     PreviewKind.VIDEO,
     PreviewKind.AUDIO,
+    PreviewKind.OFFICE,
 )

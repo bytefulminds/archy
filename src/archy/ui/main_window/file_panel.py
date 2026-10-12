@@ -28,7 +28,8 @@ from archy.i18n import tr
 from archy.services.formatting import format_modified
 from archy.services.preview import PreviewKind, kind_for_name
 from archy.ui import theme
-from archy.ui.grid_delegate import GridDelegate
+from archy.ui.archive_model import NAME_TIME_COLUMN
+from archy.ui.grid_delegate import GridDelegate, TileGridView
 from archy.ui.main_window.constants import FOOTER_HEIGHT
 from archy.ui.settings import view_labels
 
@@ -171,6 +172,10 @@ class FilePanelMixin:
         row.setContentsMargins(14, 0, 10, 0)
         row.setSpacing(8)
 
+        # On its own at the far left: it acts on the list, not on how it looks.
+        row.addWidget(self._build_locate_button())
+        row.addSpacing(4)
+
         self._folder_hint = QLabel("")
         self._folder_hint.setObjectName("folderHint")
         self._folder_hint.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
@@ -231,7 +236,9 @@ class FilePanelMixin:
             - margins.left()
             - margins.right()
             - self._sort_button.sizeHint().width()
-            - 2 * bar.layout().spacing()
+            - self._locate_button.sizeHint().width()
+            - 3 * bar.layout().spacing()
+            - 4
         )
         fits = self._view_switch_full <= room
         if fits != with_text:
@@ -253,6 +260,7 @@ class FilePanelMixin:
         (4, "column.type"),
         (1, "column.size"),
         (5, "column.modified"),
+        (6, "column.name_time"),  # a Unix time at the start of the name
     )
     _SORT_LABELS = (
         "column.name",
@@ -261,7 +269,46 @@ class FilePanelMixin:
         "column.ratio",
         "column.type",
         "column.modified",
+        "column.name_time",
     )
+
+    def _build_locate_button(self) -> QToolButton:
+        """Brings the selected file (or folder) back into view after scrolling
+        away from it in a long folder."""
+        button = QToolButton()
+        button.setObjectName("locateButton")
+        button.setToolTip(tr("locate.tip"))
+        button.setIcon(theme.symbol_icon("locate", 16, theme.TEXT_SECONDARY))
+        button.setIconSize(QSize(16, 16))
+        button.setCursor(Qt.CursorShape.PointingHandCursor)
+        button.setEnabled(False)
+        button.clicked.connect(self._reveal_selection)
+        self._selection.currentChanged.connect(lambda *_: self._update_locate())
+        self._selection.selectionChanged.connect(lambda *_: self._update_locate())
+        self._locate_button = button
+        return button
+
+    def _located_index(self):  # noqa: ANN202 - QModelIndex
+        """What the locate button shows: the current item, else the first
+        selected one."""
+        index = self._selection.currentIndex()
+        if not index.isValid():
+            selected = self._selection.selectedRows()
+            index = selected[0] if selected else index
+        return index
+
+    def _update_locate(self) -> None:
+        button = getattr(self, "_locate_button", None)
+        if button is not None:
+            button.setEnabled(self._located_index().isValid())
+
+    def _reveal_selection(self) -> None:
+        index = self._located_index()
+        if not index.isValid():
+            return
+        view = self._current_view()
+        view.scrollTo(index, QAbstractItemView.ScrollHint.PositionAtCenter)
+        view.setFocus()  # the arrow keys go on from there
 
     def _build_sort_button(self) -> QToolButton:
         button = QToolButton()
@@ -344,6 +391,9 @@ class FilePanelMixin:
         header = table.horizontalHeader()
         self._on_sort_changed(header.sortIndicatorSection(), header.sortIndicatorOrder())
         self._sort_ready = True
+        # Only shown for a folder with such names (a sort choice in any case).
+        table.setColumnHidden(NAME_TIME_COLUMN, True)
+        self._model.modelReset.connect(self._update_name_time_column)
         table.verticalHeader().setVisible(False)
         table.horizontalHeader().setStretchLastSection(False)
         table.doubleClicked.connect(self._on_double_clicked)
@@ -364,6 +414,7 @@ class FilePanelMixin:
             3: "100%",
             4: "JPEG",
             5: format_modified(datetime(2026, 12, 31, 23, 59)),
+            NAME_TIME_COLUMN: format_modified(datetime(2026, 12, 31, 23, 59)),
         }
         for col, sample in samples.items():
             title = str(self._model.headerData(col, Qt.Orientation.Horizontal) or "")
@@ -371,6 +422,10 @@ class FilePanelMixin:
             header.setSectionResizeMode(col, QHeaderView.ResizeMode.Interactive)
             header.resizeSection(col, width + 28)
         return table
+
+    def _update_name_time_column(self) -> None:
+        """The "Timestamp in name" column, only where names have one."""
+        self._table.setColumnHidden(NAME_TIME_COLUMN, not self._model.has_name_times)
 
     def _build_compact_view(self) -> QListView:
         view = QListView()
@@ -390,7 +445,7 @@ class FilePanelMixin:
         return view
 
     def _build_grid_view(self, *, large: bool) -> QListView:
-        view = QListView()
+        view = TileGridView()
         view.setModel(self._proxy)
         view.setModelColumn(0)
         view.setSelectionModel(self._selection)

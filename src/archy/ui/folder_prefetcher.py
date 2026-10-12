@@ -25,12 +25,18 @@ if TYPE_CHECKING:
 # synchronous full repaints on a big folder, which froze the UI on Windows. The
 # GUI side forwards at most one update per interval (always the latest value).
 _PROGRESS_INTERVAL_MS = 100
+_ACTIVITY_INTERVAL_MS = 400  # how often a running pass reports it is alive
 
 
 class FolderPrefetcher(QObject):
     started = Signal(int)  # a folder pass launched (files in the folder)
     progress = Signal(int, int)  # done, total - files decoded and thumbnailed
     done = Signal()  # the pass for the current folder finished
+    # While a pass runs, a few times a second: (bytes done, bytes total) of the
+    # compressed data it decodes when the backend can tell, else (-1, -1). Also
+    # the heartbeat that keeps the indicator alive before any file is done.
+    # 64-bit: a block of a big archive is easily more than 2 GB.
+    activity = Signal("qint64", "qint64")
     _done = Signal(int, int)  # worker -> GUI thread (count buffered, pass token)
     _progress = Signal(int, int, int)  # worker -> GUI thread (done, total, pass token)
 
@@ -56,6 +62,9 @@ class FolderPrefetcher(QObject):
         self._progress_timer.setSingleShot(True)
         self._progress_timer.setInterval(_PROGRESS_INTERVAL_MS)
         self._progress_timer.timeout.connect(self._flush_progress)
+        self._activity_timer = QTimer(self)
+        self._activity_timer.setInterval(_ACTIVITY_INTERVAL_MS)
+        self._activity_timer.timeout.connect(self._poll_activity)
 
     def set_thumbnails(self, thumbs: ThumbnailLoader | None) -> None:
         """The loader that receives the images decoded by each pass."""
@@ -86,6 +95,7 @@ class FolderPrefetcher(QObject):
         if self._running:
             self._running = False
             self._progress_timer.stop()
+            self._activity_timer.stop()
             self._latest = None
             self.done.emit()
 
@@ -100,6 +110,7 @@ class FolderPrefetcher(QObject):
         thumb_generation = thumbs.generation if thumbs is not None else 0
         self._running = True
         self.started.emit(len(files))
+        self._activity_timer.start()
         self._pool.start(
             _PrefetchTask(
                 self,
@@ -126,10 +137,18 @@ class FolderPrefetcher(QObject):
             latest, self._latest = self._latest, None
             self.progress.emit(*latest)
 
+    def _poll_activity(self) -> None:
+        if not self._running or self._backend is None:
+            self._activity_timer.stop()
+            return
+        progress = self._backend.group_progress()
+        self.activity.emit(*(progress if progress is not None else (-1, -1)))
+
     def _on_done(self, _count: int, token: int) -> None:
         if token == self._token:
             self._running = False
             self._progress_timer.stop()
+            self._activity_timer.stop()
             self._flush_progress()  # the final "N / N" is never dropped
             self.done.emit()
 

@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING
 from PySide6.QtCore import QObject, Qt, Signal
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
-    QAbstractSpinBox,
     QButtonGroup,
     QColorDialog,
     QFrame,
@@ -54,6 +53,7 @@ if TYPE_CHECKING:
 ROW_HEIGHT = 36
 COMBO_WIDTH = 260
 SPIN_WIDTH = 96
+SPIN_TEXT_MARGIN = 9  # inside the number fields, left and right
 HINT_WIDTH = 460
 _LABEL_MIN, _LABEL_MAX = 150, 230
 _DIALOG_WIDTH = 640
@@ -202,7 +202,10 @@ def _color_picker(
 
 
 def open_settings(
-    parent: QWidget, settings: Settings, on_prune: Callable[[], None] | None = None
+    parent: QWidget,
+    settings: Settings,
+    on_prune: Callable[[], None] | None = None,
+    on_check_updates: Callable[[], None] | None = None,
 ) -> bool:
     dlg = SoftDialog(parent, tr("settings.title"))
 
@@ -294,6 +297,18 @@ def open_settings(
     remember_check = SoftToggle(tr("settings.remember_window"))
     remember_check.setChecked(settings.remember_window)
     general.row(tr("settings.on_quit"), remember_check)
+
+    general.section(tr("settings.section.updates"))
+    update_was_on = settings.update_check == "on"
+    update_check = SoftToggle(tr("settings.check_updates"))
+    update_check.setChecked(update_was_on)
+    general.row(tr("settings.on_start"), update_check)
+    general.hint(tr("settings.check_updates_hint"))
+    check_now = QPushButton(tr("settings.check_now"))
+    check_now.setEnabled(on_check_updates is not None)
+    if on_check_updates is not None:
+        check_now.clicked.connect(on_check_updates)
+    general.control(_row(check_now))
     general.finish()
 
     # ========================================================= Temporary files
@@ -487,6 +502,9 @@ def open_settings(
     settings.set("slideshow/seconds", slideshow_spin.value())
     settings.set("preview/fill", fill_combo.currentData())
     settings.set("window/remember", remember_check.isChecked())
+    # Not decided yet ("ask") and left off: the first-start question stays.
+    if settings.update_check != "ask" or update_check.isChecked() != update_was_on:
+        settings.set("updates/check", "on" if update_check.isChecked() else "off")
     settings.set("temp/mode", mode_combo.currentData())
     settings.set("temp/location", loc_combo.currentData())
     settings.set("temp/dir", dir_edit.text())
@@ -631,8 +649,13 @@ def _spin(minimum: int, maximum: int, value: int, suffix: str) -> QSpinBox:
     spin.setRange(minimum, max(minimum, maximum))
     spin.setValue(min(max(value, minimum), max(minimum, maximum)))
     spin.setSuffix(suffix)
-    spin.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.NoButtons)
+    # No visible arrows: the stylesheet gives them no width. Not NoButtons:
+    # with a stylesheet, Qt 6.12 then leaves the text field 1 pixel wide, so
+    # the value cannot be seen. The inner margins are set on the text field
+    # (not as stylesheet padding, which Qt 6.12 ignores here) so every Qt
+    # version lays it out the same.
     spin.setAlignment(Qt.AlignmentFlag.AlignRight)
+    spin.lineEdit().setTextMargins(SPIN_TEXT_MARGIN, 0, SPIN_TEXT_MARGIN, 0)
     spin.setFixedSize(SPIN_WIDTH, ROW_HEIGHT)
     return spin
 

@@ -1,4 +1,4 @@
-texttable 1.7.0
+texttable 1.7.1
 
 ----- LICENSE -----
 

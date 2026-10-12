@@ -1,8 +1,18 @@
 from __future__ import annotations
 
-from PySide6.QtCore import QPoint, Qt, Signal
-from PySide6.QtGui import QImage, QMouseEvent, QPixmap, QResizeEvent, QTransform, QWheelEvent
-from PySide6.QtWidgets import QGraphicsPixmapItem, QGraphicsScene, QGraphicsView
+import math
+
+from PySide6.QtCore import QPoint, QRectF, Qt, Signal
+from PySide6.QtGui import (
+    QImage,
+    QMouseEvent,
+    QPainter,
+    QPixmap,
+    QResizeEvent,
+    QTransform,
+    QWheelEvent,
+)
+from PySide6.QtWidgets import QGraphicsItem, QGraphicsScene, QGraphicsView
 
 # In-memory image viewer. The image is loaded from bytes (QImage.fromData); no
 # temp file is written. Interaction:
@@ -17,6 +27,57 @@ _CLICK_SLOP = 4  # px of movement below which a press+release counts as a click
 _WHEEL_STEP = 1.25
 
 
+class _MipmapItem(QGraphicsItem):
+    """The picture, drawn smoothly at every zoom level.
+
+    Drawing a large photo at a small scale straight from its full-size pixels
+    samples only a few of them per screen pixel: fine detail turns into noise
+    (aliasing). Like a GPU's mipmaps, this keeps the picture at half, quarter,
+    ... size, each made from the one above with Qt's area-averaging smooth
+    scaling, and draws from the level just larger than the screen needs, with
+    bilinear filtering. Levels are made on first use and cost at most a third
+    of the full picture's memory."""
+
+    def __init__(self, image: QImage) -> None:
+        super().__init__()
+        self._images = [image]  # level k is 1 / 2**k of the full size
+        self._pixmaps: dict[int, QPixmap] = {0: QPixmap.fromImage(image)}
+        self._rect = QRectF(0, 0, image.width(), image.height())
+
+    def boundingRect(self) -> QRectF:  # noqa: N802 - Qt override
+        return self._rect
+
+    def _level(self, k: int) -> QPixmap:
+        while len(self._images) <= k:
+            above = self._images[-1]
+            if above.width() < 2 or above.height() < 2:
+                break
+            self._images.append(
+                above.scaled(
+                    max(1, above.width() // 2),
+                    max(1, above.height() // 2),
+                    Qt.AspectRatioMode.IgnoreAspectRatio,
+                    Qt.TransformationMode.SmoothTransformation,
+                )
+            )
+        k = min(k, len(self._images) - 1)
+        if k not in self._pixmaps:
+            self._pixmaps[k] = QPixmap.fromImage(self._images[k])
+        return self._pixmaps[k]
+
+    def paint(self, painter: QPainter, _option, _widget=None) -> None:  # noqa: ANN001
+        transform = painter.worldTransform()
+        scale = math.hypot(transform.m11(), transform.m12())
+        device = painter.device()
+        ratio = device.devicePixelRatioF() if device is not None else 1.0
+        on_screen = scale * ratio  # screen pixels per picture pixel
+        # The level at most twice the size needed: bilinear filtering from
+        # there stays smooth.
+        k = max(0, math.floor(math.log2(1 / on_screen))) if on_screen < 1 else 0
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+        painter.drawPixmap(self._rect, self._level(k), QRectF(self._level(k).rect()))
+
+
 class ImageView(QGraphicsView):
     scale_changed = Signal(int)  # current zoom percentage (relative to actual pixels)
 
@@ -24,7 +85,7 @@ class ImageView(QGraphicsView):
         super().__init__()
         self._scene = QGraphicsScene(self)
         self.setScene(self._scene)
-        self._item: QGraphicsPixmapItem | None = None
+        self._item: _MipmapItem | None = None
         self._base_image: QImage | None = None
         self._angle = 0
         self._mode = "fit"
@@ -83,7 +144,8 @@ class ImageView(QGraphicsView):
         if self._angle:
             image = image.transformed(QTransform().rotate(self._angle))
         self._scene.clear()
-        self._item = self._scene.addPixmap(QPixmap.fromImage(image))
+        self._item = _MipmapItem(image)
+        self._scene.addItem(self._item)
         self._scene.setSceneRect(self._item.boundingRect())
 
     # -------------------------------------------------------------- rotation

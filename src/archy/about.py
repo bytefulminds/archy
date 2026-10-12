@@ -89,10 +89,17 @@ COMPONENTS: tuple[Component, ...] = (
         ("packages/pi-heif.txt", "LGPL-3.0.txt"),
     ),
     Component(
-        "PyAV (optional)",
+        "PyAV",
         "BSD-3-Clause; FFmpeg under LGPL-2.1-or-later",
         "https://pyav.basswood-io.com",
         ("packages/av.txt", "LGPL-2.1.txt"),
+    ),
+    Component(
+        "certifi",
+        "MPL-2.0",
+        "https://github.com/certifi/python-certifi",
+        ("packages/certifi.txt",),
+        "Certificates for the update check.",
     ),
     Component(
         "charset-normalizer",
@@ -112,6 +119,36 @@ COMPONENTS: tuple[Component, ...] = (
         "PSF-2.0; Zstandard under BSD-3-Clause",
         "https://github.com/Rogdham/backports.zstd",
         ("packages/backports.zstd.txt",),
+    ),
+    Component(
+        "mammoth, cobble",
+        "BSD-2-Clause",
+        "https://github.com/mwilliamson/python-mammoth",
+        ("packages/mammoth.txt", "packages/cobble.txt"),
+    ),
+    Component(
+        "openpyxl, et-xmlfile",
+        "MIT",
+        "https://foss.heptapod.net/openpyxl/openpyxl",
+        ("packages/openpyxl.txt", "packages/et-xmlfile.txt"),
+    ),
+    Component(
+        "python-pptx, XlsxWriter",
+        "MIT; BSD-2-Clause",
+        "https://github.com/scanny/python-pptx",
+        ("packages/python-pptx.txt", "packages/xlsxwriter.txt"),
+    ),
+    Component(
+        "lxml (with libxml2 and libxslt)",
+        "BSD-3-Clause; MIT",
+        "https://lxml.de",
+        ("packages/lxml.txt",),
+    ),
+    Component(
+        "typing-extensions",
+        "PSF-2.0",
+        "https://github.com/python/typing_extensions",
+        ("packages/typing-extensions.txt",),
     ),
     Component(
         "Inter, JetBrains Mono and Sora fonts",

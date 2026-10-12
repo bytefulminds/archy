@@ -113,3 +113,28 @@ def test_a_portrait_photo_stands_upright() -> None:
 def test_garbage_is_a_null_image() -> None:
     assert decode_image(b"not an image").isNull()
     assert decode_image(b"\0\0\0\x18ftypheic" + b"\0" * 40).isNull()
+
+
+def test_a_damaged_jpeg_warning_names_the_file(capfd) -> None:  # noqa: ANN001
+    # A photo cut short still decodes, with a warning from Qt's JPEG reader;
+    # Archy adds which file it was (its path in the archive).
+    from PySide6.QtCore import qInstallMessageHandler
+
+    from archy.app import _qt_message
+    from archy.services.image_decode import describing
+
+    buffer = io.BytesIO()
+    _red().save(buffer, "JPEG")
+    damaged = buffer.getvalue()[:-300] + b"\xff\xd9"
+    qInstallMessageHandler(_qt_message)
+    try:
+        with describing("2009/holiday/IMG_0042.jpg"):
+            image = decode_image(damaged, QSize(64, 64), "IMG_0042.jpg")
+        decode_image(damaged, name="IMG_0043.jpg")  # no path given: the name
+    finally:
+        qInstallMessageHandler(None)
+    assert not image.isNull()
+    err = capfd.readouterr().err
+    assert "qt.gui.imageio.jpeg: Corrupt JPEG data" in err
+    assert "[2009/holiday/IMG_0042.jpg]" in err
+    assert "[IMG_0043.jpg]" in err

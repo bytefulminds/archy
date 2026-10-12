@@ -14,7 +14,9 @@ requires-python = ">=3.11"
 authors = [{ name = "Archy contributors" }]
 keywords = ["archive", "zip", "7z", "rar", "explorer", "pyside6", "qt"]
 dependencies = [
-    "PySide6>=6.7",
+    # Below 6.12: on Linux, 6.12's PipeWire audio crashes when no PipeWire
+    # daemon runs (CI, some desktops). Raise after testing a newer release.
+    "PySide6>=6.7,<6.12",
     "libarchive-c>=5.1",
     "py7zr>=0.21",
     "charset-normalizer>=3.3",
@@ -23,6 +25,12 @@ dependencies = [
     "psutil>=5.9",
     "pi-heif>=0.18",  # HEIC photos where Qt cannot read them
     "pillow>=10",  # EXIF details, AVIF and PSD
+    "av>=12.0",  # video thumbnails: a frame decoded from the bytes (PyAV, FFmpeg)
+    "certifi>=2024.2.2",  # certificates for the update check (services/updates.py)
+    # Office previews (services/office.py): Word, Excel, PowerPoint
+    "mammoth>=1.6",
+    "openpyxl>=3.1",
+    "python-pptx>=0.6.23",
 ]
 
 [project.urls]
@@ -31,8 +39,7 @@ Source = "https://gitlab.com/bytefulminds/archy"
 Issues = "https://gitlab.com/bytefulminds/archy/-/issues"
 
 [project.optional-dependencies]
-video-fallback = ["av>=12.0"]       # in-memory video decode fallback (PyAV)
-dev = ["pytest>=8.0", "ruff>=0.5", "mypy>=1.10"]
+dev = ["pytest>=8.0", "ruff>=0.5", "mypy>=1.10", "python-docx>=1.1"]  # docx for tests
 
 [project.scripts]
 archy = "archy.__main__:main"

@@ -5,8 +5,9 @@
 #   ... -Publish   also adds it to the GitLab release (needs $env:GITLAB_TOKEN,
 #                  a personal access token with the api scope)
 #
-# Needs Python 3.11+ (the py launcher from python.org). Installs the project +
-# PyInstaller into .venv, and Inno Setup with winget, when missing.
+# Needs Python 3.12 (the py launcher from python.org). Installs the locked
+# versions from requirements\lock.txt into .venv (made again when the lock
+# changes), and Inno Setup with winget when missing.
 param([switch]$Publish)
 $ErrorActionPreference = "Stop"
 Set-Location (Resolve-Path "$PSScriptRoot\..\..")
@@ -17,12 +18,21 @@ $version = (Select-String -Path src\archy\__init__.py -Pattern '__version__ = "(
 $python = ".venv\Scripts\python.exe"
 
 Write-Host ">> Setup"
-if (-not (Test-Path $python)) {
-    $wanted = if ((py --list) -match "3\.12") { "-3.12" } else { "-3" }  # 3.12 like CI
-    py $wanted -m venv .venv; Check "Creating .venv"
+# Every build gets exactly the versions in the lock, on Python 3.12 like the
+# other builds: the venv is made again whenever the lock changes.
+$lock = (Get-FileHash requirements\lock.txt -Algorithm SHA256).Hash
+$stamp = ".venv\lock.sha256"
+if ((Test-Path $python) -and (-not (Test-Path $stamp) -or (Get-Content $stamp) -ne $lock)) {
+    Remove-Item -Recurse -Force .venv
 }
-& $python -m pip install -q --upgrade pip; Check "pip"
-& $python -m pip install -q -e ".[dev]" pyinstaller; Check "Installing Archy"
+if (-not (Test-Path $python)) {
+    if (-not ((py --list) -match "3\.12")) { throw "Python 3.12 not found (py --list); install it from python.org" }
+    py -3.12 -m venv .venv; Check "Creating .venv"
+    & $python -m pip install -q --upgrade pip; Check "pip"
+    & $python -m pip install -q --require-hashes -r requirements\lock.txt; Check "Installing the locked packages"
+    Set-Content -Path $stamp -Value $lock
+}
+& $python -m pip install -q --no-deps --no-build-isolation -e .; Check "Installing Archy"
 
 function Find-Iscc {
     $found = Get-Command ISCC.exe -ErrorAction SilentlyContinue

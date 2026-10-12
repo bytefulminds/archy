@@ -30,6 +30,7 @@ class _Level:
     profile: object | None = None
     items: int = 0
     size: int = 0
+    marks: dict[tuple[str, ...], str] = field(default_factory=dict)  # where you were
 
 
 class NestedMixin:
@@ -62,6 +63,7 @@ class NestedMixin:
         if entries is None:
             return
 
+        self._remember_place()  # back out of it, the archive file is selected again
         self._outer_levels.append(
             _Level(
                 backend=self._backend,
@@ -70,6 +72,7 @@ class NestedMixin:
                 folder=tuple(n.name for n in self._nav[1:]),
                 history=list(self._history),
                 history_index=self._history_index,
+                marks=dict(self._folder_marks),
                 encrypted=self._archive_encrypted,
                 profile=self._edit_profile,
                 items=self._archive_items,
@@ -122,6 +125,7 @@ class NestedMixin:
         size: int = 0,
         history: list[tuple[str, ...]] | None = None,
         history_index: int = -1,
+        marks: dict[tuple[str, ...], str] | None = None,
     ) -> None:
         """Make ``backend`` the archive shown (without closing the others)."""
         self._backend = backend
@@ -146,6 +150,8 @@ class NestedMixin:
         else:
             self._history = list(history)
             self._history_index = history_index
+            self._folder_marks = dict(marks or {})
+            self._shown_path = None  # the folder shown was in the other archive
             self._history_moving = True
         try:
             self._refresh_folder()
@@ -184,6 +190,7 @@ class NestedMixin:
             size=target.size,
             history=target.history,
             history_index=target.history_index,
+            marks=target.marks,
         )
         for backend in [*closing, inner]:
             if backend is not None and backend is not target.backend:

@@ -1,8 +1,9 @@
 """Build the demo archive used for the README screenshots.
 
 Every picture is generated procedurally (gradients, ridges, a sun), so the
-screenshots contain no real photos. Needs numpy and Pillow; the short video
-needs ffmpeg on PATH and is skipped without it.
+screenshots contain no real photos. Needs numpy and Pillow, python-docx,
+python-pptx and openpyxl for the Office files (pip install -e ".[dev]"); the
+short video needs ffmpeg on PATH and is skipped without it.
 
     python scripts/readme_screenshots/make_demo_archive.py demo.7z
 """
@@ -406,10 +407,189 @@ def banner() -> bytes:
     return out.getvalue()
 
 
+def _scaled(jpeg: bytes, width: int) -> bytes:
+    image = Image.open(io.BytesIO(jpeg))
+    image = image.resize((width, round(image.height * width / image.width)), Image.LANCZOS)
+    out = io.BytesIO()
+    image.save(out, "JPEG", quality=85)
+    return out.getvalue()
+
+
+DAYS = [
+    ("1", "Cortina - Tre Cime", "24 km", "Zonsondergang"),
+    ("2", "Lago di Braies", "8 km", "Zonsopgang"),
+    ("3", "Seceda", "12 km", "Blauwe uur"),
+    ("4", "Passo Giau", "6 km", "Zonsopgang"),
+]
+
+
+def word_document() -> bytes:
+    """A travel report with a heading, text, a picture and a table."""
+    import docx
+    from docx.shared import Cm
+
+    document = docx.Document()
+    document.add_heading("Reisverslag Dolomieten", 0)
+    intro = document.add_paragraph("Zes dagen wandelen rond ")
+    intro.add_run("Cortina d'Ampezzo").bold = True
+    intro.add_run(", met elke dag een vroege wekker voor het beste licht.")
+    document.add_heading("Dag 2: Lago di Braies", 1)
+    document.add_paragraph(
+        "Om half vijf op pad. Het meer lag spiegelglad, de eerste roeiboten kwamen pas "
+        "na zevenen. Statief laag bij het water, ND-filter erop."
+    )
+    document.add_picture(io.BytesIO(_scaled(lake(), 900)), width=Cm(14))
+    document.add_heading("De route", 1)
+    table = document.add_table(rows=1, cols=4)
+    table.style = "Light Grid Accent 1"
+    for cell, text in zip(table.rows[0].cells, ("Dag", "Route", "Afstand", "Licht"), strict=True):
+        cell.text = text
+    for day in DAYS:
+        for cell, text in zip(table.add_row().cells, day, strict=True):
+            cell.text = text
+    out = io.BytesIO()
+    document.save(out)
+    return out.getvalue()
+
+
+def powerpoint_deck() -> bytes:
+    """A slide with a photo and a title on it, then the highlights."""
+    import pptx
+    from pptx.dml.color import RGBColor
+    from pptx.util import Emu, Pt
+
+    deck = pptx.Presentation()
+    deck.slide_width, deck.slide_height = Emu(12192000), Emu(6858000)  # 16:9
+    width, height = deck.slide_width, deck.slide_height
+    blank = deck.slide_layouts[6]
+
+    first = deck.slides.add_slide(blank)
+    first.shapes.add_picture(io.BytesIO(_scaled(mountains_sunset(), 1600)), 0, 0, width, height)
+    box = first.shapes.add_textbox(Emu(width // 14), Emu(height * 6 // 10), width // 2, height // 4)
+    for i, (text, size, bold) in enumerate(
+        (("Dolomieten 2026", 54, True), ("Zes dagen, vier routes, 468 foto's", 24, False))
+    ):
+        paragraph = box.text_frame.paragraphs[0] if i == 0 else box.text_frame.add_paragraph()
+        run = paragraph.add_run()
+        run.text = text
+        run.font.size, run.font.bold = Pt(size), bold
+        run.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
+
+    second = deck.slides.add_slide(deck.slide_layouts[5])  # title only
+    second.shapes.title.text = "Hoogtepunten"
+    rows = deck.slides[1].shapes.add_table(
+        len(DAYS) + 1, 4, Emu(width // 14), Emu(height * 3 // 10), width * 6 // 7, height // 2
+    )
+    for c, text in enumerate(("Dag", "Route", "Afstand", "Licht")):
+        rows.table.cell(0, c).text = text
+    for r, day in enumerate(DAYS, start=1):
+        for c, text in enumerate(day):
+            rows.table.cell(r, c).text = text
+    out = io.BytesIO()
+    deck.save(out)
+    return _with_thumbnail(out.getvalue(), _title_slide_picture())
+
+
+def _title_slide_picture() -> bytes:
+    """The first slide as PowerPoint saves it in the file (docProps)."""
+    from PIL import ImageDraw
+
+    slide = Image.open(io.BytesIO(mountains_sunset())).resize((512, 288), Image.LANCZOS)
+    draw = ImageDraw.Draw(slide)
+    draw.text((37, 170), "Dolomieten 2026", fill=(255, 255, 255), font_size=34)
+    draw.text((37, 212), "Zes dagen, vier routes, 468 foto's", fill=(255, 255, 255), font_size=15)
+    out = io.BytesIO()
+    slide.save(out, "JPEG", quality=88)
+    return out.getvalue()
+
+
+def _with_thumbnail(document: bytes, picture: bytes) -> bytes:
+    """Replace the thumbnail python-pptx's template carries (a blank slide)."""
+    import zipfile
+
+    out = io.BytesIO()
+    with zipfile.ZipFile(io.BytesIO(document)) as src, zipfile.ZipFile(out, "w") as dst:
+        for info in src.infolist():
+            data = picture if info.filename == "docProps/thumbnail.jpeg" else src.read(info)
+            dst.writestr(info, data, compress_type=zipfile.ZIP_DEFLATED)
+    return out.getvalue()
+
+
+def excel_workbook() -> bytes:
+    """The trip's expenses, with the totals as values (no formulas: a
+    preview shows what Excel last calculated, and openpyxl calculates
+    nothing)."""
+    import datetime
+
+    import openpyxl
+    from openpyxl.styles import Font
+
+    book = openpyxl.Workbook()
+    sheet = book.active
+    sheet.title = "Uitgaven"
+    sheet.append(["Datum", "Omschrijving", "Categorie", "Bedrag", "Betaald door"])
+    for cell in sheet[1]:
+        cell.font = Font(bold=True)
+    lines = [line.split(";") for line in DOCS["Documenten/uitgaven.csv"].splitlines()[1:]]
+    for date, what, category, amount, who in lines:
+        day = datetime.date.fromisoformat(date)
+        sheet.append([day, what, category, float(amount.replace(",", ".")), who])
+    totals = book.create_sheet("Per categorie")
+    totals.append(["Categorie", "Totaal"])
+    sums: dict[str, float] = {}
+    for _date, _what, category, amount, _who in lines:
+        sums[category] = sums.get(category, 0.0) + float(amount.replace(",", "."))
+    for category, total in sorted(sums.items()):
+        totals.append([category, round(total, 2)])
+    out = io.BytesIO()
+    book.save(out)
+    return out.getvalue()
+
+
+def pdf_route() -> bytes:
+    """A one-page route card as a PDF (a picture page, made with Pillow)."""
+    from PIL import ImageDraw
+
+    page = Image.new("RGB", (1240, 1754), (255, 255, 255))
+    draw = ImageDraw.Draw(page)
+    photo = Image.open(io.BytesIO(fog_forest())).resize((1080, 540))
+    page.paste(photo, (80, 330))
+    draw.rectangle((80, 80, 1160, 260), fill=(45, 106, 79))
+    draw.text((120, 130), "ROUTEKAART", fill=(255, 255, 255), font_size=72)
+    draw.text((120, 210), "Dag 3: Seceda, 12 km", fill=(220, 240, 230), font_size=34)
+    for i, line in enumerate(
+        ("Start: Ortisei, kabelbaan 08:00", "Hoogste punt: 2519 m", "Terug: via Col Raiser")
+    ):
+        draw.text((90, 930 + i * 60), line, fill=(43, 45, 66), font_size=36)
+    out = io.BytesIO()
+    page.save(out, "PDF", resolution=150)
+    return out.getvalue()
+
+
+# Phone exports often start their names with a Unix time: Archy can sort on
+# it and shows it as a date. Seconds, milliseconds, and "-" or "--" after it.
+PHONE = {
+    "1780806600--kabelbaan.jpg": lambda: mountains_sunset(1),
+    "1780720200-ontbijt_terras.jpg": lake,
+    "1780642800123_IMG_0042.jpg": ocean,
+    "1780563600--meer_ochtend.jpg": lake,
+    "1780899000-wolken_passo_giau.jpg": fog_forest,
+    "1780479000123_IMG_0017.jpg": dunes,
+    "IMG_0051.jpg": tulips,
+    "notitie_parkeren.jpg": night_city,
+}
+
+
 def build(out: str | Path) -> Path:
     files = {name: fn() for name, fn in SCENES.items()}
     files.update({k: v.encode() for k, v in DOCS.items()})
     files["Website/banner.png"] = banner()
+    files["Documenten/reisverslag.docx"] = word_document()
+    files["Documenten/presentatie.pptx"] = powerpoint_deck()
+    files["Documenten/budget.xlsx"] = excel_workbook()
+    files["Documenten/routekaart.pdf"] = pdf_route()
+    for name, scene in PHONE.items():
+        files[f"Foto's/Telefoon/{name}"] = _scaled(scene(), 800)
     try:
         files["Foto's/2026-06 Dolomieten/timelapse_wolken.mp4"] = make_video()
     except Exception as exc:  # noqa: BLE001
