@@ -14,6 +14,11 @@ next release.
 
 ### Added
 
+- **New version notice.** If you allow it (Archy asks once), Archy checks at
+  start-up whether a newer version is out and offers *Go to download*,
+  *Later* or *Skip this version*. Only Archy's version number and your
+  operating system are sent. On or off, and *Check now*, under *Settings >
+  General > Updates*.
 - **Edit encrypted zip archives.** An encrypted zip can now be unlocked (click
   the lock) to add, rename and delete files. Files you did not change are
   copied as they are, still encrypted with their own method; new and changed
@@ -41,6 +46,8 @@ next release.
 
 ### Changed
 
+- The Mac download says it needs macOS 14 (Sonoma) or newer, which it already
+  did, instead of failing to start on an older macOS.
 - An encrypted 7z that is compressed can now be unlocked for editing too when
   it holds up to 1 GB; saving compresses it again, which the unlock dialog
   says takes about how long (a few minutes for 1 GB). Larger ones stay locked.

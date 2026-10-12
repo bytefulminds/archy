@@ -108,7 +108,8 @@ been written and checked. Encrypted archives start locked so nothing changes by
 accident. An encrypted zip, a 7z made with Store, and a compressed 7z of up to
 1 GB can be unlocked for editing, and stay encrypted with the same password.
 Previews are made in memory, passwords are never stored, and nothing is loaded
-from the internet.
+from the internet. If you allow it, Archy only asks whether there is a new
+version, and lets you know.
 
 <p align="center">
   <img src="docs/screenshots/unlock-dialog.png" alt="The dialog that explains what unlocking an encrypted backup for editing means" width="49%">
@@ -126,7 +127,7 @@ English and Dutch, with room for more languages.
 
 Download Archy from the
 [releases page](https://gitlab.com/bytefulminds/archy/-/releases): the
-`setup.exe` for Windows, the `.dmg` for your Mac (Apple Silicon) or the
+`setup.exe` for Windows, the `.dmg` for your Mac (Apple Silicon, macOS 14 or newer) or the
 `.AppImage` for Linux. The apps are not signed yet; the release notes say how
 to open them the first time.
 

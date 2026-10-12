@@ -18,6 +18,11 @@ by the preview, and py7zr's lazily-imported submodules. zip, 7z and tar
 absent (typically Windows), those formats are simply reported as unsupported and
 everything else works.
 
+The builds install exactly the versions in `requirements/lock.txt` (with
+hashes, on Python 3.12), so every installer is made from the same, tested
+packages. The lock is made with `uv pip compile` (the command is at the top of
+the file) and only changes on purpose, after testing the new versions.
+
 Run PyInstaller with the project venv's Python (`python -m PyInstaller`): it
 bundles what that Python can import, and the spec stops when a required
 library is missing. The build scripts then run `Archy --self-test` on the

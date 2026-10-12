@@ -432,6 +432,23 @@
     "lock.compressed_small_text": "Dit archief is versleuteld en daarom vergrendeld, zodat er niet per ongeluk iets verandert.\n\nKlik om het te ontgrendelen. Je kunt dan bestanden toevoegen, hernoemen en verwijderen. Het is gecomprimeerd, dus bij Opslaan comprimeert Archy alles opnieuw, met hetzelfde wachtwoord ({time}), en vervangt het origineel pas nadat de nieuwe versie is gecontroleerd.",
     "lock.compressed_dialog_html": "<p><b>{name}</b> is versleuteld en alleen-lezen.</p><p>Na het ontgrendelen kun je bestanden toevoegen, hernoemen en verwijderen. Er verandert niets in het archief tot je op <b>Opslaan</b> klikt.</p><p>Bij Opslaan:</p><ul style='margin-left:-20px'><li>schrijft Archy een volledige nieuwe versie naast het origineel en comprimeert alles opnieuw ({unpacked}: {time}),</li><li>met hetzelfde wachtwoord {names}als het origineel,</li><li>en vervangt Archy het origineel pas nadat de nieuwe versie is gecontroleerd. Gaat er iets mis of annuleer je, dan blijft het origineel ongewijzigd.</li></ul><p>Dit vraagt even wat vrije ruimte op dezelfde schijf (nu vrij: {free}).</p>",
     "lock.estimate_seconds": "ongeveer {seconds} seconden",
-    "lock.estimate_minutes": "ongeveer {minutes} minuten"
+    "lock.estimate_minutes": "ongeveer {minutes} minuten",
+    "settings.section.updates": "Updates",
+    "settings.on_start": "Bij starten:",
+    "settings.check_updates": "Controleren op een nieuwe versie",
+    "settings.check_updates_hint": "Archy vraagt GitLab, waar het gepubliceerd wordt, of er een nieuwere versie is. Alleen het versienummer van Archy en je besturingssysteem worden meegestuurd, niets over je bestanden.",
+    "settings.check_now": "Nu controleren",
+    "update.title": "Updates",
+    "update.ask_title": "Controleren op nieuwe versies?",
+    "update.ask_text": "Bij het starten kan Archy aan GitLab, waar het gepubliceerd wordt, vragen of er een nieuwere versie is. Alleen het versienummer van Archy en je besturingssysteem worden meegestuurd, niets over je bestanden. Je kunt dit later wijzigen onder Instellingen > Algemeen.",
+    "update.ask_yes": "Controleren op updates",
+    "update.ask_no": "Nee, bedankt",
+    "update.available_title": "Een nieuwe versie van Archy",
+    "update.available_text": "Archy {version} is beschikbaar (je hebt {current}). Op de downloadpagina staat wat er veranderd is en de installer voor je computer.",
+    "update.download": "Naar de download",
+    "update.later": "Later",
+    "update.skip": "Deze versie overslaan",
+    "update.latest": "Je hebt de nieuwste versie van Archy ({current}).",
+    "update.failed": "Archy kon niet controleren op een nieuwe versie: {reason}"
   }
 }

@@ -95,6 +95,13 @@ COMPONENTS: tuple[Component, ...] = (
         ("packages/av.txt", "LGPL-2.1.txt"),
     ),
     Component(
+        "certifi",
+        "MPL-2.0",
+        "https://github.com/certifi/python-certifi",
+        ("packages/certifi.txt",),
+        "Certificates for the update check.",
+    ),
+    Component(
         "charset-normalizer",
         "MIT",
         "https://github.com/jawah/charset_normalizer",

@@ -202,7 +202,10 @@ def _color_picker(
 
 
 def open_settings(
-    parent: QWidget, settings: Settings, on_prune: Callable[[], None] | None = None
+    parent: QWidget,
+    settings: Settings,
+    on_prune: Callable[[], None] | None = None,
+    on_check_updates: Callable[[], None] | None = None,
 ) -> bool:
     dlg = SoftDialog(parent, tr("settings.title"))
 
@@ -294,6 +297,18 @@ def open_settings(
     remember_check = SoftToggle(tr("settings.remember_window"))
     remember_check.setChecked(settings.remember_window)
     general.row(tr("settings.on_quit"), remember_check)
+
+    general.section(tr("settings.section.updates"))
+    update_was_on = settings.update_check == "on"
+    update_check = SoftToggle(tr("settings.check_updates"))
+    update_check.setChecked(update_was_on)
+    general.row(tr("settings.on_start"), update_check)
+    general.hint(tr("settings.check_updates_hint"))
+    check_now = QPushButton(tr("settings.check_now"))
+    check_now.setEnabled(on_check_updates is not None)
+    if on_check_updates is not None:
+        check_now.clicked.connect(on_check_updates)
+    general.control(_row(check_now))
     general.finish()
 
     # ========================================================= Temporary files
@@ -487,6 +502,9 @@ def open_settings(
     settings.set("slideshow/seconds", slideshow_spin.value())
     settings.set("preview/fill", fill_combo.currentData())
     settings.set("window/remember", remember_check.isChecked())
+    # Not decided yet ("ask") and left off: the first-start question stays.
+    if settings.update_check != "ask" or update_check.isChecked() != update_was_on:
+        settings.set("updates/check", "on" if update_check.isChecked() else "off")
     settings.set("temp/mode", mode_combo.currentData())
     settings.set("temp/location", loc_combo.currentData())
     settings.set("temp/dir", dir_edit.text())

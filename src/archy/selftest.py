@@ -37,6 +37,7 @@ MODULES = (
     "PIL.Image",
     "pi_heif",
     "av",
+    "certifi",
     "mammoth",
     "openpyxl",
     "pptx",
@@ -130,6 +131,16 @@ def _check_video_thumbnail() -> None:
     image = _decode_video_frame(out.getvalue())
     if image is None or image.isNull() or (image.width(), image.height()) != (64, 48):
         raise RuntimeError("no frame decoded from a test video")
+
+
+def _check_certificates() -> None:
+    """The update check verifies GitLab's certificate with certifi's bundle;
+    without the file in the package every check would fail."""
+    from archy.services import updates
+
+    context = updates._tls_context()
+    if not context.get_ca_certs() and not context.cert_store_stats().get("x509"):
+        raise RuntimeError("no certificates loaded")
 
 
 def _check_resources() -> None:
@@ -294,6 +305,7 @@ def run(out: Callable[[str], None] | None = None) -> int:
         ("AES zip round trip", _check_aes_zip),
         ("Office previews", _check_office),
         ("video thumbnail", _check_video_thumbnail),
+        ("certificates for the update check", _check_certificates),
         ("resources", _check_resources),
     ]
     if not os.environ.get("ARCHY_NO_WEBENGINE"):

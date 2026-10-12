@@ -68,6 +68,10 @@ _DEFAULTS = {
     "res/threads": 0,
     "theme/accent": DEFAULT_ACCENT,
     "theme/accent2": DEFAULT_ACCENT2,
+    # Ask GitLab for a newer version at start-up: "ask" (not decided yet: the
+    # first start asks) | "on" | "off". The version the user chose to skip.
+    "updates/check": "ask",
+    "updates/skipped": "",
 }
 
 
@@ -108,6 +112,15 @@ class Settings:
         self._q.sync()
 
     # ------------------------------------------------------------ typed
+    @property
+    def update_check(self) -> str:
+        v = str(self._get("updates/check") or "ask")
+        return v if v in ("ask", "on", "off") else "ask"
+
+    @property
+    def skipped_version(self) -> str:
+        return str(self._get("updates/skipped") or "")
+
     @property
     def start_view(self) -> int:
         v = self._get_int("view/start")

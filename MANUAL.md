@@ -221,6 +221,15 @@ be cancelled. A larger one stays locked, because a save would take hours.
 Archy only writes to disk when you ask it to: when you extract, and when you
 save an edited archive. Everything else stays in memory.
 
+**Update check.** The one thing Archy asks the internet is whether there is a
+newer version, and only when you allow it: the first time it starts, Archy
+asks whether it may. It then asks GitLab, where Archy is published, for the
+latest release, sending only Archy's version number and your operating
+system; nothing about your archives or files. When there is a newer version you
+choose: *Go to download* (opens the download page in your browser), *Later* (asks
+again next time) or *Skip this version*. Switch it on or off, or check at once,
+under *Settings > General > Updates*.
+
 Some archives are simply bigger than your memory. For those, *Settings >
 Temporary files* has three work modes:
 
@@ -252,7 +261,8 @@ make thumbnails.
 Open the settings with the gear in the top bar or **Ctrl+,**:
 
 - **General:** language, start view, preview fit, compact rows, accent colours,
-  and whether to remember the window size and position.
+  whether to remember the window size and position, and whether to check for
+  a new version when Archy starts (with a *Check now* button).
 - **Temporary files:** the work mode, the location and cleaning up.
 - **Advanced:** memory limits and threads.
 - **About:** the version, who makes Archy, its license, and the open source
@@ -385,6 +395,8 @@ languages are very welcome.
 
 ## Roadmap
 
+- Install a new version from within Archy, when you choose to (Archy already
+  tells you about it).
 - Create a new archive in Archy (zip or 7z, with or without a password) and
   put files in it.
 - Faster saves of compressed 7z archives, using several processor cores, so

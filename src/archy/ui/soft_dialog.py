@@ -91,7 +91,10 @@ class SoftDialog(QDialog):
         if primary:
             button.setObjectName("primaryAction")
         button.setCursor(Qt.CursorShape.PointingHandCursor)
-        button.setMinimumWidth(96)
+        # Its stylesheet padding counts only once polished; without that a long
+        # label is cut off when the dialog is narrow.
+        button.ensurePolished()
+        button.setMinimumWidth(max(96, button.sizeHint().width()))
         button.clicked.connect(lambda: self._choose(value))
         self._button_row.addWidget(button)
         return button
@@ -102,6 +105,11 @@ class SoftDialog(QDialog):
 
     def value(self) -> object | None:
         return self._value
+
+    def set_min_width(self, width: int) -> None:
+        """At least ``width``, and wide enough for the buttons: an explicit
+        minimum width would otherwise let a row of long button labels overlap."""
+        self.setMinimumWidth(max(width, self.minimumSizeHint().width()))
 
 
 def _qsize(n: int):  # noqa: ANN202 - tiny local helper
@@ -119,7 +127,7 @@ def message(parent: QWidget | None, title: str, text: str, *, ok_label: str | No
     label.setWordWrap(True)
     dlg.add_body_widget(label)
     dlg.add_button(ok_label or tr("button.ok"), True, primary=True)
-    dlg.setMinimumWidth(380)
+    dlg.set_min_width(380)
     dlg.exec()
 
 
@@ -139,7 +147,7 @@ def confirm(
     dlg.add_body_widget(label)
     for lbl, value, primary in buttons:
         dlg.add_button(lbl, value, primary=primary)
-    dlg.setMinimumWidth(400)
+    dlg.set_min_width(400)
     dlg.exec()
     return dlg.value()
 
@@ -168,7 +176,7 @@ def prompt_text(
     dlg.add_body_widget(field)
     dlg.add_button(tr("button.cancel"), None, primary=False)
     dlg.add_button(ok_label or tr("button.ok"), "__ok__", primary=True)
-    dlg.setMinimumWidth(400)
+    dlg.set_min_width(400)
     field.setFocus()
     dlg.exec()
     return field.text() if dlg.value() == "__ok__" else None
@@ -193,6 +201,6 @@ def confirm_with_toggle(
     dlg.add_body_widget(check)
     for lbl, value, primary in buttons:
         dlg.add_button(lbl, value, primary=primary)
-    dlg.setMinimumWidth(430)
+    dlg.set_min_width(430)
     dlg.exec()
     return dlg.value(), check.isChecked()

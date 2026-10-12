@@ -173,6 +173,14 @@ third-party components with their licenses, and the notices text built from
   hidden column 6 ("Timestamp in name") sorts on it; the list view shows that
   column only in a folder where a name has one (`has_name_times`), and the
   name's tooltip shows the date in every view.
+- `updates.py` - the update check, the only network request Archy makes and
+  only when allowed (setting `updates/check`: "ask" until the first start
+  asks, then "on"/"off"): one GET to GitLab's
+  `releases/permalink/latest` with urllib and certifi's certificates (a
+  packaged app cannot rely on the build Python's certificate paths), and
+  version comparison. `ui/main_window/updates.py` (`UpdatesMixin`) runs it on a
+  thread after start-up (`app.run` calls `schedule_update_check`, tests never
+  do) and shows Go to download / Later / Skip this version.
 - `temp_files.py` - `TempManager`: temp-files mode, the per-session encrypted
   store and its cleanup.
 - `encrypted_device.py` - `EncryptedBlobDevice`, a decrypting QIODevice so Qt
@@ -454,7 +462,10 @@ ruff format --check .   # formatting
 boots the window offscreen and checks a live accent change - it is the safety net
 for UI-layer refactors, so run it after any change under `ui/`.
 
-CI (`.gitlab-ci.yml`) runs lint and the tests on every pipeline. On a version
+CI (`.gitlab-ci.yml`) runs lint and the tests on every pipeline, on the
+locked versions in `requirements/lock.txt` (made with `uv pip compile` from
+`pyproject.toml` and `requirements/build.in`; `tests/test_lock.py` keeps them
+in step). On a version
 tag it builds the three installers (Linux on GitLab's shared runners, Windows
 and macOS on our own group runners with the shell executor) and creates
 the GitLab Release with the changelog section and the downloads; see
@@ -501,6 +512,8 @@ inherits from. This keeps each area easy to find and read without a
 - `extract.py` (`ExtractMixin`) - extraction and prefetch progress.
 - `apply_settings.py` (`SettingsMixin`) - opening the settings screen and
   applying changes live.
+- `updates.py` (`UpdatesMixin`) - the new-version notice (see
+  `services/updates.py`).
 - `window_frame.py` (`WindowFrameMixin`) - frameless-window chrome: resize grips,
   responsive layout, and the `resizeEvent` / `closeEvent` overrides.
 - `chrome.py` and `constants.py` - the frameless-window helper widgets

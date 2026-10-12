@@ -26,6 +26,7 @@ dependencies = [
     "pi-heif>=0.18",  # HEIC photos where Qt cannot read them
     "pillow>=10",  # EXIF details, AVIF and PSD
     "av>=12.0",  # video thumbnails: a frame decoded from the bytes (PyAV, FFmpeg)
+    "certifi>=2024.2.2",  # certificates for the update check (services/updates.py)
     # Office previews (services/office.py): Word, Excel, PowerPoint
     "mammoth>=1.6",
     "openpyxl>=3.1",

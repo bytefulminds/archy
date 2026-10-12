@@ -1,4 +1,4 @@
-backports.zstd 1.7.0
+backports.zstd 1.8.0
 
 ----- LICENSE.txt -----
 

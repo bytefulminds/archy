@@ -432,6 +432,23 @@
     "lock.compressed_small_text": "This archive is encrypted and therefore locked, so nothing changes by accident.\n\nClick to unlock it. You can then add, rename and delete files. It is compressed, so on Save Archy compresses everything again, with the same password ({time}), and replaces the original only after checking the new version.",
     "lock.compressed_dialog_html": "<p><b>{name}</b> is encrypted and read-only.</p><p>After unlocking you can add, rename and delete files. Nothing in the archive changes until you click <b>Save</b>.</p><p>On Save, Archy:</p><ul style='margin-left:-20px'><li>writes a complete new version next to the original and compresses everything again ({unpacked}: {time}),</li><li>with the same password {names}as the original,</li><li>and replaces the original only after checking the new version. If anything goes wrong or you cancel, the original stays unchanged.</li></ul><p>This needs some free space on the same disk for a moment (free now: {free}).</p>",
     "lock.estimate_seconds": "about {seconds} seconds",
-    "lock.estimate_minutes": "about {minutes} minutes"
+    "lock.estimate_minutes": "about {minutes} minutes",
+    "settings.section.updates": "Updates",
+    "settings.on_start": "On start:",
+    "settings.check_updates": "Check for a new version",
+    "settings.check_updates_hint": "Archy asks GitLab, where it is published, whether there is a newer version. Only Archy's version number and your operating system are sent, nothing about your files.",
+    "settings.check_now": "Check now",
+    "update.title": "Updates",
+    "update.ask_title": "Check for new versions?",
+    "update.ask_text": "When it starts, Archy can ask GitLab, where it is published, whether there is a newer version. Only Archy's version number and your operating system are sent, nothing about your files. You can change this later under Settings > General.",
+    "update.ask_yes": "Check for updates",
+    "update.ask_no": "No, thanks",
+    "update.available_title": "A new version of Archy",
+    "update.available_text": "Archy {version} is available (you have {current}). The download page lists what changed and has the installer for your computer.",
+    "update.download": "Go to download",
+    "update.later": "Later",
+    "update.skip": "Skip this version",
+    "update.latest": "You have the latest version of Archy ({current}).",
+    "update.failed": "Archy could not check for a new version: {reason}"
   }
 }

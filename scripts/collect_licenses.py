@@ -31,6 +31,7 @@ PACKAGES = (
     "pi-heif",
     "libarchive-c",
     "av",
+    "certifi",
     "brotli",
     "texttable",
     "backports.zstd",

@@ -223,6 +223,20 @@ def test_app_icon_resolves_for_every_platform(monkeypatch) -> None:
     assert app_module._app_icon_path().name == "archy_macos.png"
 
 
+def _write_tiny_video(av, out_file) -> None:  # noqa: ANN001
+    """A 1-second 64x48 MPEG-4 video, frames from grey to lighter (no numpy)."""
+    with av.open(out_file, "w", format="mp4") as out:
+        stream = out.add_stream("mpeg4", rate=25)
+        stream.width, stream.height, stream.pix_fmt = 64, 48, "yuv420p"
+        for i in range(25):
+            frame = av.VideoFrame(64, 48, "rgb24")
+            frame.planes[0].update(bytes([i * 8]) * (64 * 48 * 3))
+            for packet in stream.encode(frame.reformat(format="yuv420p")):
+                out.mux(packet)
+        for packet in stream.encode():
+            out.mux(packet)
+
+
 def test_disk_mode_keeps_folder_and_video_encrypted(tmp_path, monkeypatch) -> None:
     # "Always use temporary files": the folder pass keeps its files in the
     # encrypted store (not RAM), thumbnails still all appear, a video plays
@@ -233,7 +247,6 @@ def test_disk_mode_keeps_folder_and_video_encrypted(tmp_path, monkeypatch) -> No
 
     py7zr = pytest.importorskip("py7zr")
     av = pytest.importorskip("av")
-    import numpy as np
     from PySide6.QtCore import QBuffer, QByteArray
     from PySide6.QtGui import QColor, QImage
 
@@ -242,17 +255,7 @@ def test_disk_mode_keeps_folder_and_video_encrypted(tmp_path, monkeypatch) -> No
 
     # A tiny real video (PyAV) plus a few images, solid 7z.
     video = io.BytesIO()
-    with av.open(video, "w", format="mp4") as out:
-        stream = out.add_stream("mpeg4", rate=25)
-        stream.width, stream.height, stream.pix_fmt = 64, 48, "yuv420p"
-        for i in range(25):
-            frame = av.VideoFrame.from_ndarray(
-                np.full((48, 64, 3), i * 8, np.uint8), format="rgb24"
-            )
-            for packet in stream.encode(frame):
-                out.mux(packet)
-        for packet in stream.encode():
-            out.mux(packet)
+    _write_tiny_video(av, video)
     marker = b"ARCHY-PLAINTEXT-MARKER"
     archive = tmp_path / "shoot.7z"
     with py7zr.SevenZipFile(str(archive), "w") as z:
@@ -598,24 +601,13 @@ def test_video_in_a_stored_7z_plays_straight_from_the_archive(tmp_path) -> None:
 
     py7zr = pytest.importorskip("py7zr")
     av = pytest.importorskip("av")
-    import numpy as np
 
     from archy.services.encrypted_device import ReaderDevice
     from archy.ui import theme
     from archy.ui.main_window import MainWindow
 
     video = io.BytesIO()
-    with av.open(video, "w", format="mp4") as out:
-        stream = out.add_stream("mpeg4", rate=25)
-        stream.width, stream.height, stream.pix_fmt = 64, 48, "yuv420p"
-        for i in range(25):
-            frame = av.VideoFrame.from_ndarray(
-                np.full((48, 64, 3), i * 8, np.uint8), format="rgb24"
-            )
-            for packet in stream.encode(frame):
-                out.mux(packet)
-        for packet in stream.encode():
-            out.mux(packet)
+    _write_tiny_video(av, video)
     archive = tmp_path / "stored.7z"
     filters = [{"id": py7zr.FILTER_COPY}, {"id": py7zr.FILTER_CRYPTO_AES256_SHA256}]
     with py7zr.SevenZipFile(

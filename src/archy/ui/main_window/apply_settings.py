@@ -13,7 +13,12 @@ class SettingsMixin:
 
     # ------------------------------------------------------------ settings
     def open_settings_dialog(self) -> None:
-        if open_settings(self, self._settings, on_prune=self._temp.prune):
+        if open_settings(
+            self,
+            self._settings,
+            on_prune=self._temp.prune,
+            on_check_updates=self.check_for_updates_now,
+        ):
             self._apply_settings()
 
     def _apply_settings(self) -> None:

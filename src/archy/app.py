@@ -227,6 +227,8 @@ def run() -> int:
     # macOS QFileOpenEvent (Open With / drop on the dock icon), now or later. The
     # OS-level registration of the file types belongs to the installers (packaging/).
     _install_file_open_handler(app, window)
+    # Ask GitLab for a newer version, when the user allowed it (asked once).
+    window.schedule_update_check()
 
     code = app.exec()
 

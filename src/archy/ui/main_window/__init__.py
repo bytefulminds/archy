@@ -46,6 +46,7 @@ from archy.ui.main_window.preview import PreviewMixin
 from archy.ui.main_window.search import SearchMixin
 from archy.ui.main_window.selection import SelectionMixin
 from archy.ui.main_window.sidebar import SidebarMixin
+from archy.ui.main_window.updates import UpdatesMixin
 from archy.ui.main_window.window_frame import WindowFrameMixin
 from archy.ui.open_worker import OpenWorker
 from archy.ui.preview_loader import PreviewLoader
@@ -69,6 +70,7 @@ class MainWindow(
     EditingMixin,
     ExtractMixin,
     SettingsMixin,
+    UpdatesMixin,
     WindowFrameMixin,
     QMainWindow,
 ):
